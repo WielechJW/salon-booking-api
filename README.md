@@ -655,7 +655,39 @@ PostgreSQL
 
 ---
 
-# Przykładowa struktura backendu
+# Aktualna struktura backendu
+
+```text
+app/
+├── __init__.py
+├── main.py
+├── data.py
+├── routers/
+│   ├── __init__.py
+│   └── services.py
+└── schemas/
+    ├── __init__.py
+    └── service.py
+```
+
+- `app/main.py` — tworzy aplikację FastAPI, dołącza router i obsługuje `GET /`.
+- `app/routers/services.py` — zawiera endpointy usług: pobieranie, dodawanie, aktualizowanie i usuwanie. Tu szukaj kodu, gdy chcesz zmienić zachowanie `/services`.
+- `app/schemas/service.py` — definiuje model `Service`, czyli pola przyjmowane przez `POST` i `PUT`.
+- `app/data.py` — przechowuje przykładowe usługi w pamięci. Dane dodane przez API znikają po restarcie serwera; później zastąpi je baza danych.
+- `__init__.py` — oznacza katalogi jako pakiety Pythona. Na razie te pliki pozostają puste.
+
+Uruchomienie z katalogu projektu:
+
+```bash
+source .venv/bin/activate
+python -m uvicorn app.main:app --reload
+```
+
+Dokumentacja i ręczne testowanie API: `http://127.0.0.1:8000/docs`.
+
+---
+
+# Przykładowa struktura docelowa backendu
 
 ```text
 app/
@@ -704,9 +736,9 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 # Status projektu
 
 ```text
-[ ] FastAPI setup
+[x] FastAPI setup
 [ ] Employees CRUD
-[ ] Services CRUD
+[x] Services CRUD
 [ ] Appointments CRUD
 [ ] PostgreSQL
 [ ] SQLAlchemy
