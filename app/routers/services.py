@@ -30,15 +30,6 @@ def get_service(service_id: int):
 
 @router.post("")
 def create_service(service: Service):
-    if service.duration_minutes <= 0:
-        raise HTTPException(
-            status_code=400, detail="Duration must be a positive integer"
-        )
-    if service.price < 0:
-        raise HTTPException(
-            status_code=400, detail="Price must be a non-negative number"
-        )
-
     new_service = {
         "id": get_next_service_id(),
         "name": service.name,
@@ -65,15 +56,6 @@ def delete_service(service_id: int):
 
 @router.put("/{service_id}")
 def update_service(service_id: int, updated_service: Service):
-    if updated_service.duration_minutes <= 0:
-        raise HTTPException(
-            status_code=400, detail="Duration must be a positive integer"
-        )
-    if updated_service.price < 0:
-        raise HTTPException(
-            status_code=400, detail="Price must be a non-negative number"
-        )
-
     for service in services:
         if service["id"] == service_id:
             service["name"] = updated_service.name
