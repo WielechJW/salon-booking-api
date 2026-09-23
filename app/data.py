@@ -25,3 +25,5 @@ employees = [
         "name": "Bartek Nowak",
     },
 ]
+
+appointments = []
