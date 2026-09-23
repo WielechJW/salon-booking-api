@@ -5,3 +5,4 @@ class Service(BaseModel):
     description: str
     duration_minutes: int
     price: float
+

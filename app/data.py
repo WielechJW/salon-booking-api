@@ -14,3 +14,14 @@ services = [
         "price": 120,
     },
 ]
+
+employees = [
+    {
+        "id": 1,
+        "name": "Anna Kowalska",
+    },
+    {
+        "id": 2,
+        "name": "Bartek Nowak",
+    },
+]
