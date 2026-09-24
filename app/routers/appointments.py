@@ -1,10 +1,16 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-import app.data as data
+from app.database import get_db
+from app.models.appointment import AppointmentModel
+from app.models.employee import EmployeeModel
+from app.models.service import ServiceModel
 from app.schemas.appointment import (
     Appointment,
+    AppointmentResponse,
     AppointmentStatus,
     AppointmentStatusUpdate,
 )
@@ -13,123 +19,100 @@ from app.schemas.appointment import (
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
 
-def get_next_appointment_id():
-    if not data.appointments:
-        return 1
-
-    return max(appointment["id"] for appointment in data.appointments) + 1
-
-
-@router.get("")
+@router.get("", response_model=list[AppointmentResponse])
 def get_appointments(
     employee_id: int | None = None,
     status: AppointmentStatus | None = None,
+    database_session: Session = Depends(get_db),
 ):
-    appointments = data.appointments
+    query = select(AppointmentModel).order_by(AppointmentModel.start_at)
 
     if employee_id is not None:
-        appointments = [
-            appointment
-            for appointment in appointments
-            if appointment["employee_id"] == employee_id
-        ]
+        query = query.where(AppointmentModel.employee_id == employee_id)
 
     if status is not None:
-        appointments = [
-            appointment
-            for appointment in appointments
-            if appointment["status"] == status
-        ]
+        query = query.where(AppointmentModel.status == status)
 
-    return appointments
+    return database_session.scalars(query).all()
 
 
-@router.get("/{appointment_id}")
-def get_appointment(appointment_id: int):
-    for appointment in data.appointments:
-        if appointment["id"] == appointment_id:
-            return appointment
+@router.get("/{appointment_id}", response_model=AppointmentResponse)
+def get_appointment(
+    appointment_id: int,
+    database_session: Session = Depends(get_db),
+):
+    appointment = database_session.get(AppointmentModel, appointment_id)
 
-    raise HTTPException(status_code=404, detail="Appointment not found")
+    if appointment is None:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    return appointment
 
 
-@router.post("", status_code=201)
-def create_appointment(appointment: Appointment):
-    employee_exists = any(
-        employee["id"] == appointment.employee_id for employee in data.employees
-    )
+@router.post("", status_code=201, response_model=AppointmentResponse)
+def create_appointment(
+    appointment: Appointment,
+    database_session: Session = Depends(get_db),
+):
+    employee = database_session.get(EmployeeModel, appointment.employee_id)
 
-    if not employee_exists:
+    if employee is None:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    selected_service = next(
-        (
-            service
-            for service in data.services
-            if service["id"] == appointment.service_id
-        ),
-        None,
-    )
+    selected_service = database_session.get(ServiceModel, appointment.service_id)
 
     if selected_service is None:
         raise HTTPException(status_code=404, detail="Service not found")
 
     new_start = appointment.start_at
-    new_end = new_start + timedelta(
-        minutes=selected_service["duration_minutes"]
+    new_end = new_start + timedelta(minutes=selected_service.duration_minutes)
+
+    existing_query = (
+        select(AppointmentModel, ServiceModel.duration_minutes)
+        .join(ServiceModel, AppointmentModel.service_id == ServiceModel.id)
+        .where(
+            AppointmentModel.employee_id == appointment.employee_id,
+            AppointmentModel.status != "cancelled",
+        )
     )
 
-    for existing_appointment in data.appointments:
-        if existing_appointment["employee_id"] != appointment.employee_id:
-            continue
+    for existing_appointment, duration_minutes in database_session.execute(
+        existing_query
+    ):
+        existing_start = existing_appointment.start_at
+        existing_end = existing_start + timedelta(minutes=duration_minutes)
 
-        if existing_appointment["status"] == "cancelled":
-            continue
-
-        existing_service = next(
-            (
-                service
-                for service in data.services
-                if service["id"] == existing_appointment["service_id"]
-            ),
-            None,
-        )
-
-        if existing_service is None:
-            continue
-
-        existing_start = existing_appointment["start_at"]
-        existing_end = existing_start + timedelta(
-            minutes=existing_service["duration_minutes"]
-        )
-
-        appointments_overlap = new_start < existing_end and new_end > existing_start
-
-        if appointments_overlap:
+        if new_start < existing_end and new_end > existing_start:
             raise HTTPException(
                 status_code=409,
                 detail="Employee already has an appointment at this time",
             )
 
-    new_appointment = {
-        "id": get_next_appointment_id(),
+    new_appointment = AppointmentModel(
         **appointment.model_dump(),
-        "status": "pending",
-    }
+        status="pending",
+    )
 
-    data.appointments.append(new_appointment)
+    database_session.add(new_appointment)
+    database_session.commit()
+    database_session.refresh(new_appointment)
 
     return new_appointment
 
 
-@router.patch("/{appointment_id}/status")
+@router.patch("/{appointment_id}/status", response_model=AppointmentResponse)
 def update_appointment_status(
     appointment_id: int,
     status_update: AppointmentStatusUpdate,
+    database_session: Session = Depends(get_db),
 ):
-    for appointment in data.appointments:
-        if appointment["id"] == appointment_id:
-            appointment["status"] = status_update.status
-            return appointment
+    appointment = database_session.get(AppointmentModel, appointment_id)
 
-    raise HTTPException(status_code=404, detail="Appointment not found")
+    if appointment is None:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    appointment.status = status_update.status
+    database_session.commit()
+    database_session.refresh(appointment)
+
+    return appointment

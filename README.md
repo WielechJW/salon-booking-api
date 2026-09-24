@@ -661,20 +661,39 @@ PostgreSQL
 app/
 ├── __init__.py
 ├── main.py
-├── data.py
+├── database.py
+├── models/
+│   ├── __init__.py
+│   ├── service.py
+│   ├── employee.py
+│   └── appointment.py
 ├── routers/
 │   ├── __init__.py
-│   └── services.py
+│   ├── services.py
+│   ├── employees.py
+│   └── appointments.py
 └── schemas/
     ├── __init__.py
-    └── service.py
+    ├── service.py
+    ├── employee.py
+    └── appointment.py
+
+tests/
+├── conftest.py
+├── test_services.py
+├── test_employees.py
+└── test_appointments.py
 ```
 
-- `app/main.py` — tworzy aplikację FastAPI, dołącza router i obsługuje `GET /`.
-- `app/routers/services.py` — zawiera endpointy usług: pobieranie, dodawanie, aktualizowanie i usuwanie. Tu szukaj kodu, gdy chcesz zmienić zachowanie `/services`.
-- `app/schemas/service.py` — definiuje model `Service`, czyli pola przyjmowane przez `POST` i `PUT`.
-- `app/data.py` — przechowuje przykładowe usługi w pamięci. Dane dodane przez API znikają po restarcie serwera; później zastąpi je baza danych.
-- `__init__.py` — oznacza katalogi jako pakiety Pythona. Na razie te pliki pozostają puste.
+- `app/main.py` — tworzy aplikację, tabele i dołącza routery.
+- `app/database.py` — konfiguruje SQLite, silnik i sesje SQLAlchemy.
+- `app/models/` — opisuje tabele SQLAlchemy.
+- `app/schemas/` — waliduje requesty i formatuje odpowiedzi Pydantic.
+- `app/routers/` — zawiera endpointy usług, pracowników i rezerwacji.
+- `tests/` — używa osobnej, tymczasowej bazy SQLite.
+- `salon.db` — lokalna baza deweloperska; plik jest ignorowany przez Git.
+
+Wszystkie dane aplikacji są przechowywane w SQLite. `Base.metadata.create_all()` tymczasowo tworzy brakujące tabele przy starcie. W kolejnym etapie zastąpi go Alembic, a później SQLite zostanie zamienione na PostgreSQL.
 
 Uruchomienie z katalogu projektu:
 
@@ -683,7 +702,13 @@ source .venv/bin/activate
 python -m uvicorn app.main:app --reload
 ```
 
-Dokumentacja i ręczne testowanie API: `http://127.0.0.1:8000/docs`.
+Testy:
+
+```bash
+python -m pytest -v
+```
+
+Dokumentacja API: `http://127.0.0.1:8000/docs`.
 
 ---
 
@@ -737,11 +762,11 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 
 ```text
 [x] FastAPI setup
-[ ] Employees CRUD
+[x] Employees CRUD
 [x] Services CRUD
-[ ] Appointments CRUD
+[x] Appointments CRUD
 [ ] PostgreSQL
-[ ] SQLAlchemy
+[x] SQLAlchemy
 [ ] Alembic
 [ ] Employee ↔ Service
 [ ] Employee schedules
@@ -751,7 +776,7 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 [ ] Users
 [ ] JWT authentication
 [ ] Roles and permissions
-[ ] Automated tests
+[x] Automated tests
 [ ] Docker
 [ ] React frontend
 [ ] Deployment

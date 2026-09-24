@@ -1,53 +1,90 @@
-from fastapi import APIRouter, HTTPException 
-import app.data as data
-from app.schemas.employee import Employee
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models.appointment import AppointmentModel
+from app.models.employee import EmployeeModel
+from app.schemas.employee import Employee, EmployeeResponse
+
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
-def get_next_employee_id():
-    if not data.employees:
-        return 1
 
-    return max(employee["id"] for employee in data.employees) + 1
+@router.get("", response_model=list[EmployeeResponse])
+def get_employees(database_session: Session = Depends(get_db)):
+    query = select(EmployeeModel).order_by(EmployeeModel.id)
+    return database_session.scalars(query).all()
 
 
-@router.get("")
-def get_employees():
-    return data.employees
+@router.get("/{employee_id}", response_model=EmployeeResponse)
+def get_employee(
+    employee_id: int,
+    database_session: Session = Depends(get_db),
+):
+    employee = database_session.get(EmployeeModel, employee_id)
 
-@router.get("/{employee_id}")
-def get_employee(employee_id: int):
-    for employee in data.employees:
-        if employee["id"] == employee_id:
-            return employee
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Employee not found")
 
-    raise HTTPException(status_code=404, detail="Employee not found")
+    return employee
 
-@router.post("", status_code=201)
-def create_employee(employee: Employee):
-    new_employee = {
-        "id": get_next_employee_id(),
-        "name": employee.name,
-    }
 
-    data.employees.append(new_employee)
+@router.post("", status_code=201, response_model=EmployeeResponse)
+def create_employee(
+    employee: Employee,
+    database_session: Session = Depends(get_db),
+):
+    new_employee = EmployeeModel(name=employee.name)
+
+    database_session.add(new_employee)
+    database_session.commit()
+    database_session.refresh(new_employee)
 
     return new_employee
 
-@router.put("/{employee_id}")
-def update_employee(employee_id: int, updated_employee: Employee):
-    for employee in data.employees:
-        if employee["id"] == employee_id:
-            employee["name"] = updated_employee.name
-            return employee
 
-    raise HTTPException(status_code=404, detail="Employee not found")
+@router.put("/{employee_id}", response_model=EmployeeResponse)
+def update_employee(
+    employee_id: int,
+    updated_employee: Employee,
+    database_session: Session = Depends(get_db),
+):
+    employee = database_session.get(EmployeeModel, employee_id)
+
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    employee.name = updated_employee.name
+    database_session.commit()
+    database_session.refresh(employee)
+
+    return employee
+
 
 @router.delete("/{employee_id}")
-def delete_employee(employee_id: int):
-    for employee in data.employees:
-        if employee["id"] == employee_id:
-            data.employees.remove(employee)
-            return {"message": "Employee deleted successfully"}
+def delete_employee(
+    employee_id: int,
+    database_session: Session = Depends(get_db),
+):
+    employee = database_session.get(EmployeeModel, employee_id)
 
-    raise HTTPException(status_code=404, detail="Employee not found")
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    appointment_id = database_session.scalar(
+        select(AppointmentModel.id)
+        .where(AppointmentModel.employee_id == employee_id)
+        .limit(1)
+    )
+
+    if appointment_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Employee has appointments and cannot be deleted",
+        )
+
+    database_session.delete(employee)
+    database_session.commit()
+
+    return {"message": "Employee deleted successfully"}

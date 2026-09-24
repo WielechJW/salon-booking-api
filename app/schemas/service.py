@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Service(BaseModel):
@@ -6,3 +6,9 @@ class Service(BaseModel):
     description: str = Field(min_length=5, max_length=500)
     duration_minutes: int = Field(gt=0)
     price: float = Field(ge=0)
+
+
+class ServiceResponse(Service):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
