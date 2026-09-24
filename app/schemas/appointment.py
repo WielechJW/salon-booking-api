@@ -2,6 +2,12 @@ from datetime import datetime
 from typing import Literal
 from pydantic import BaseModel, Field
 
+AppointmentStatus = Literal[
+    "pending",
+    "confirmed",
+    "cancelled",
+    "completed",
+]
 
 class Appointment(BaseModel):
     employee_id: int = Field(gt=0)
@@ -12,4 +18,4 @@ class Appointment(BaseModel):
     client_phone: str = Field(min_length=7, max_length=20)
 
 class AppointmentStatusUpdate(BaseModel):
-    status: Literal["pending", "confirmed", "cancelled", "completed"]
+    status: AppointmentStatus
