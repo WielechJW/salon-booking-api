@@ -685,7 +685,7 @@ tests/
 └── test_appointments.py
 ```
 
-- `app/main.py` — tworzy aplikację, tabele i dołącza routery.
+- `app/main.py` — tworzy aplikację FastAPI i dołącza routery.
 - `app/database.py` — konfiguruje SQLite, silnik i sesje SQLAlchemy.
 - `app/models/` — opisuje tabele SQLAlchemy.
 - `app/schemas/` — waliduje requesty i formatuje odpowiedzi Pydantic.
@@ -693,12 +693,13 @@ tests/
 - `tests/` — używa osobnej, tymczasowej bazy SQLite.
 - `salon.db` — lokalna baza deweloperska; plik jest ignorowany przez Git.
 
-Wszystkie dane aplikacji są przechowywane w SQLite. `Base.metadata.create_all()` tymczasowo tworzy brakujące tabele przy starcie. W kolejnym etapie zastąpi go Alembic, a później SQLite zostanie zamienione na PostgreSQL.
+Wszystkie dane aplikacji są przechowywane w SQLite. Strukturą tabel zarządza Alembic przez wersjonowane migracje. Później SQLite zostanie zamienione na PostgreSQL.
 
 Uruchomienie z katalogu projektu:
 
 ```bash
 source .venv/bin/activate
+python -m alembic upgrade head
 python -m uvicorn app.main:app --reload
 ```
 
@@ -767,7 +768,7 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 [x] Appointments CRUD
 [ ] PostgreSQL
 [x] SQLAlchemy
-[ ] Alembic
+[x] Alembic
 [ ] Employee ↔ Service
 [ ] Employee schedules
 [ ] Availability system
