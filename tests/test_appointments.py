@@ -1,6 +1,9 @@
+from datetime import time
+
 import pytest
 from fastapi import HTTPException
 
+from app.models.schedule import ScheduleModel
 from app.routers.appointments import (
     create_appointment,
     get_appointment,
@@ -11,6 +14,19 @@ from app.schemas.appointment import (
     Appointment,
     AppointmentStatusUpdate,
 )
+
+
+@pytest.fixture(autouse=True)
+def add_work_schedule(database_session):
+    database_session.add(
+        ScheduleModel(
+            employee_id=1,
+            day_of_week=4,
+            start_time=time(9, 0),
+            end_time=time(18, 0),
+        )
+    )
+    database_session.commit()
 
 
 def make_appointment(
@@ -115,3 +131,46 @@ def test_appointment_is_persisted_and_filterable(database_session):
         )
         == []
     )
+
+
+def test_appointment_on_day_off_is_rejected(database_session):
+    with pytest.raises(HTTPException) as error:
+        create_appointment(
+            make_appointment("2026-09-26T10:00:00"),
+            database_session,
+        )
+
+    assert error.value.status_code == 409
+    assert error.value.detail == "Employee does not work on this day"
+
+@pytest.mark.parametrize(
+    "start_at",
+    [
+        "2026-09-25T08:30:00",
+        "2026-09-25T17:30:00",
+    ],
+)
+def test_appointment_outside_working_hours_is_rejected(
+    database_session,
+    start_at,
+):
+    with pytest.raises(HTTPException) as error:
+        create_appointment(
+            make_appointment(start_at),
+            database_session,
+        )
+
+    assert error.value.status_code == 409
+    assert (
+        error.value.detail
+        == "Appointment is outside employee working hours"
+    )
+
+
+def test_appointment_ending_at_work_end_is_allowed(database_session):
+    created = create_appointment(
+        make_appointment("2026-09-25T17:15:00"),
+        database_session,
+    )
+
+    assert created.start_at == make_appointment("2026-09-25T17:15:00").start_at

@@ -667,30 +667,37 @@ app/
 │   ├── service.py
 │   ├── employee.py
 │   ├── employee_service.py
-│   └── appointment.py
+│   ├── appointment.py
+│   └── schedule.py
 ├── routers/
 │   ├── __init__.py
 │   ├── services.py
 │   ├── employees.py
-│   └── appointments.py
+│   ├── appointments.py
+│   ├── schedules.py
+│   └── availability.py
 └── schemas/
     ├── __init__.py
     ├── service.py
     ├── employee.py
-    └── appointment.py
+    ├── appointment.py
+    ├── schedule.py
+    └── availability.py
 
 tests/
 ├── conftest.py
 ├── test_services.py
 ├── test_employees.py
-└── test_appointments.py
+├── test_appointments.py
+├── test_schedules.py
+└── test_availability.py
 ```
 
 - `app/main.py` — tworzy aplikację FastAPI i dołącza routery.
 - `app/database.py` — konfiguruje SQLite, silnik i sesje SQLAlchemy.
 - `app/models/` — opisuje tabele SQLAlchemy.
 - `app/schemas/` — waliduje requesty i formatuje odpowiedzi Pydantic.
-- `app/routers/` — zawiera endpointy usług, pracowników i rezerwacji.
+- `app/routers/` — zawiera endpointy usług, pracowników, grafików, dostępności i rezerwacji.
 - `tests/` — używa osobnej, tymczasowej bazy SQLite.
 - `salon.db` — lokalna baza deweloperska; plik jest ignorowany przez Git.
 
@@ -770,10 +777,10 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 [ ] PostgreSQL
 [x] SQLAlchemy
 [x] Alembic
-[ ] Employee ↔ Service
-[ ] Employee schedules
-[ ] Availability system
-[ ] Booking validation
+[x] Employee ↔ Service
+[x] Employee schedules
+[x] Availability system
+[x] Booking validation
 [ ] Time off / breaks
 [ ] Users
 [ ] JWT authentication

@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.appointment import AppointmentModel
 from app.models.employee import EmployeeModel
 from app.models.employee_service import EmployeeServiceModel
+from app.models.schedule import ScheduleModel
 from app.models.service import ServiceModel
 from app.schemas.appointment import (
     Appointment,
@@ -78,6 +79,31 @@ def create_appointment(
 
     new_start = appointment.start_at
     new_end = new_start + timedelta(minutes=selected_service.duration_minutes)
+
+    work_schedule = database_session.scalar(
+        select(ScheduleModel).where(
+            ScheduleModel.employee_id == appointment.employee_id,
+            ScheduleModel.day_of_week == new_start.weekday(),
+        )
+    )
+
+    if work_schedule is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Employee does not work on this day",
+        )
+
+    is_outside_working_hours = (
+        new_start.time() < work_schedule.start_time
+        or new_end.date() != new_start.date()
+        or new_end.time() > work_schedule.end_time
+    )
+
+    if is_outside_working_hours:
+        raise HTTPException(
+            status_code=409,
+            detail="Appointment is outside employee working hours",
+        )
 
     existing_query = (
         select(AppointmentModel, ServiceModel.duration_minutes)

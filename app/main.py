@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.routers.appointments import router as appointments_router
+from app.routers.availability import router as availability_router
 from app.routers.employees import router as employees_router
 from app.routers.services import router as services_router
 from app.routers.schedules import router as schedules_router
@@ -15,6 +16,8 @@ app.include_router(services_router)
 app.include_router(employees_router)
 app.include_router(appointments_router)
 app.include_router(schedules_router)
+app.include_router(availability_router)
+
 
 @app.get("/")
 def root():
