@@ -57,6 +57,21 @@ def test_adjacent_appointment_is_allowed(database_session):
     assert created_appointment.start_at.minute == 45
 
 
+def test_appointment_for_unassigned_service_is_rejected(database_session):
+    with pytest.raises(HTTPException) as error:
+        create_appointment(
+            make_appointment(
+                "2026-09-25T11:00:00",
+                employee_id=2,
+                service_id=1,
+            ),
+            database_session,
+        )
+
+    assert error.value.status_code == 409
+    assert error.value.detail == "Employee does not provide this service"
+
+
 def test_cancelled_appointment_does_not_block_time(database_session):
     created_appointment = create_appointment(
         make_appointment("2026-09-25T10:00:00"),

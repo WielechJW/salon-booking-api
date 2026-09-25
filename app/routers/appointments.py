@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.appointment import AppointmentModel
 from app.models.employee import EmployeeModel
+from app.models.employee_service import EmployeeServiceModel
 from app.models.service import ServiceModel
 from app.schemas.appointment import (
     Appointment,
@@ -63,6 +64,17 @@ def create_appointment(
 
     if selected_service is None:
         raise HTTPException(status_code=404, detail="Service not found")
+
+    assignment = database_session.get(
+        EmployeeServiceModel,
+        (appointment.employee_id, appointment.service_id),
+    )
+
+    if assignment is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Employee does not provide this service",
+        )
 
     new_start = appointment.start_at
     new_end = new_start + timedelta(minutes=selected_service.duration_minutes)

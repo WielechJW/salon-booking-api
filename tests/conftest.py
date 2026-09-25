@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 import app.models
 from app.database import Base
 from app.models.employee import EmployeeModel
+from app.models.employee_service import EmployeeServiceModel
 from app.models.service import ServiceModel
 
 
@@ -35,6 +36,8 @@ def database_session(tmp_path):
                     duration_minutes=60,
                     price=Decimal("120.00"),
                 ),
+                EmployeeServiceModel(employee_id=1, service_id=1),
+                EmployeeServiceModel(employee_id=1, service_id=2),
             ]
         )
         session.commit()
