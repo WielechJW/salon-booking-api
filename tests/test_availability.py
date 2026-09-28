@@ -1,12 +1,6 @@
-from datetime import date, time
-
-import pytest
-from fastapi import HTTPException
+from datetime import time
 
 from app.models.schedule import ScheduleModel
-from app.routers.appointments import create_appointment
-from app.routers.availability import get_employee_availability
-from app.schemas.appointment import Appointment
 
 
 def add_friday_schedule(database_session):
@@ -21,94 +15,114 @@ def add_friday_schedule(database_session):
     database_session.commit()
 
 
-def make_appointment(start_at: str) -> Appointment:
-    return Appointment(
-        employee_id=1,
-        service_id=1,
-        start_at=start_at,
-        client_name="Jan Kowalski",
-        client_email="jan@example.com",
-        client_phone="123456789",
+def make_appointment(start_at: str) -> dict:
+    return {
+        "employee_id": 1,
+        "service_id": 1,
+        "start_at": start_at,
+        "client_name": "Jan Kowalski",
+        "client_email": "jan@example.com",
+        "client_phone": "123456789",
+    }
+
+
+def get_availability(client):
+    return client.get(
+        "/employees/1/availability",
+        params={
+            "date": "2026-09-25",
+            "service_id": 1,
+        },
     )
 
 
-def test_availability_contains_slots_for_entire_shift(database_session):
+def test_availability_contains_slots_for_entire_shift(
+    client,
+    database_session,
+):
     add_friday_schedule(database_session)
 
-    availability = get_employee_availability(
-        1,
-        date(2026, 9, 25),
-        1,
-        database_session,
-    )
+    response = get_availability(client)
 
-    assert availability.available_slots == [
-        time(9, 0),
-        time(9, 45),
-        time(10, 30),
-        time(11, 15),
+    assert response.status_code == 200
+    assert response.json() == {
+        "employee_id": 1,
+        "service_id": 1,
+        "date": "2026-09-25",
+        "available_slots": [
+            "09:00:00",
+            "09:45:00",
+            "10:30:00",
+            "11:15:00",
+        ],
+    }
+
+
+def test_booked_slot_is_not_available(client, database_session):
+    add_friday_schedule(database_session)
+    appointment_response = client.post(
+        "/appointments",
+        json=make_appointment("2026-09-25T09:45:00"),
+    )
+    assert appointment_response.status_code == 201
+
+    response = get_availability(client)
+
+    assert response.status_code == 200
+    assert response.json()["available_slots"] == [
+        "09:00:00",
+        "10:30:00",
+        "11:15:00",
     ]
 
 
-def test_booked_slot_is_not_available(database_session):
+def test_cancelled_appointment_does_not_block_slot(
+    client,
+    database_session,
+):
     add_friday_schedule(database_session)
-    create_appointment(
-        make_appointment("2026-09-25T09:45:00"),
-        database_session,
+    appointment_response = client.post(
+        "/appointments",
+        json=make_appointment("2026-09-25T09:45:00"),
+    )
+    assert appointment_response.status_code == 201
+    appointment_id = appointment_response.json()["id"]
+
+    status_response = client.patch(
+        f"/appointments/{appointment_id}/status",
+        json={"status": "cancelled"},
+    )
+    assert status_response.status_code == 200
+
+    response = get_availability(client)
+
+    assert response.status_code == 200
+    assert "09:45:00" in response.json()["available_slots"]
+
+
+def test_day_without_schedule_has_no_available_slots(client):
+    response = client.get(
+        "/employees/1/availability",
+        params={
+            "date": "2026-09-26",
+            "service_id": 1,
+        },
     )
 
-    availability = get_employee_availability(
-        1,
-        date(2026, 9, 25),
-        1,
-        database_session,
+    assert response.status_code == 200
+    assert response.json()["available_slots"] == []
+
+
+def test_availability_rejects_unassigned_service(client):
+    response = client.get(
+        "/employees/2/availability",
+        params={
+            "date": "2026-09-25",
+            "service_id": 1,
+        },
     )
 
-    assert availability.available_slots == [
-        time(9, 0),
-        time(10, 30),
-        time(11, 15),
-    ]
-
-
-def test_cancelled_appointment_does_not_block_slot(database_session):
-    add_friday_schedule(database_session)
-    appointment = create_appointment(
-        make_appointment("2026-09-25T09:45:00"),
-        database_session,
-    )
-    appointment.status = "cancelled"
-    database_session.commit()
-
-    availability = get_employee_availability(
-        1,
-        date(2026, 9, 25),
-        1,
-        database_session,
-    )
-
-    assert time(9, 45) in availability.available_slots
-
-
-def test_day_without_schedule_has_no_available_slots(database_session):
-    availability = get_employee_availability(
-        1,
-        date(2026, 9, 26),
-        1,
-        database_session,
-    )
-
-    assert availability.available_slots == []
-
-
-def test_availability_rejects_unassigned_service(database_session):
-    with pytest.raises(HTTPException) as error:
-        get_employee_availability(
-            2,
-            date(2026, 9, 25),
-            1,
-            database_session,
-        )
-
-    assert error.value.status_code == 409
-    assert error.value.detail == "Employee does not provide this service"
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "Employee does not provide this service"
+    }

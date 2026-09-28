@@ -1,11 +1,13 @@
 from decimal import Decimal
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 import app.models
-from app.database import Base
+from app.database import Base, get_db
+from app.main import app
 from app.models.employee import EmployeeModel
 from app.models.employee_service import EmployeeServiceModel
 from app.models.service import ServiceModel
@@ -14,7 +16,10 @@ from app.models.service import ServiceModel
 @pytest.fixture
 def database_session(tmp_path):
     database_path = tmp_path / "test.db"
-    test_engine = create_engine(f"sqlite:///{database_path}")
+    test_engine = create_engine(
+        f"sqlite:///{database_path}",
+        connect_args={"check_same_thread": False},
+    )
     Base.metadata.create_all(bind=test_engine)
 
     with Session(test_engine) as session:
@@ -45,3 +50,17 @@ def database_session(tmp_path):
         yield session
 
     test_engine.dispose()
+
+
+@pytest.fixture
+def client(database_session):
+    def override_get_db():
+        yield database_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.pop(get_db, None)
