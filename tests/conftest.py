@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
@@ -14,6 +15,14 @@ from app.models.employee_service import EmployeeServiceModel
 from app.models.service import ServiceModel
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
+
+
+@pytest.fixture(autouse=True)
+def freeze_current_time(monkeypatch):
+    monkeypatch.setattr(
+        "app.routers.appointments.utc_now",
+        lambda: datetime(2026, 9, 24, 12, tzinfo=timezone.utc),
+    )
 
 
 def get_test_database_url(tmp_path) -> str:

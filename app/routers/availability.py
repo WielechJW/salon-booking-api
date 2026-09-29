@@ -11,6 +11,7 @@ from app.models.employee_service import EmployeeServiceModel
 from app.models.schedule import ScheduleModel
 from app.models.service import ServiceModel
 from app.schemas.availability import AvailabilityResponse
+from app.timezone import as_utc, get_salon_timezone
 
 router = APIRouter(prefix="/employees", tags=["availability"])
 
@@ -61,21 +62,26 @@ def get_employee_availability(
             available_slots=[],
         )
 
-    work_start = datetime.combine(target_date, work_schedule.start_time)
-    work_end = datetime.combine(target_date, work_schedule.end_time)
-    day_end = datetime.combine(target_date + timedelta(days=1), datetime.min.time())
-
-    appointments_query = (
-        select(AppointmentModel, ServiceModel.duration_minutes)
-        .join(ServiceModel, AppointmentModel.service_id == ServiceModel.id)
-        .where(
-            AppointmentModel.employee_id == employee_id,
-            AppointmentModel.start_at >= work_start,
-            AppointmentModel.start_at < day_end,
-            AppointmentModel.status != "cancelled",
-        )
+    salon_timezone = get_salon_timezone()
+    local_work_start = datetime.combine(
+        target_date,
+        work_schedule.start_time,
+        tzinfo=salon_timezone,
     )
-    appointments = database_session.execute(appointments_query).all()
+    local_work_end = datetime.combine(
+        target_date,
+        work_schedule.end_time,
+        tzinfo=salon_timezone,
+    )
+    work_start = as_utc(local_work_start)
+    work_end = as_utc(local_work_end)
+    appointments_query = select(AppointmentModel).where(
+        AppointmentModel.employee_id == employee_id,
+        AppointmentModel.start_at < work_end,
+        AppointmentModel.end_at > work_start,
+        AppointmentModel.status != "cancelled",
+    )
+    appointments = database_session.scalars(appointments_query).all()
 
     service_duration = timedelta(minutes=selected_service.duration_minutes)
     available_slots = []
@@ -85,16 +91,18 @@ def get_employee_availability(
         slot_end = slot_start + service_duration
         overlaps_appointment = False
 
-        for existing_appointment, duration_minutes in appointments:
-            existing_start = existing_appointment.start_at
-            existing_end = existing_start + timedelta(minutes=duration_minutes)
+        for existing_appointment in appointments:
+            existing_start = as_utc(existing_appointment.start_at)
+            existing_end = as_utc(existing_appointment.end_at)
 
             if slot_start < existing_end and slot_end > existing_start:
                 overlaps_appointment = True
                 break
 
         if not overlaps_appointment:
-            available_slots.append(slot_start.time())
+            available_slots.append(
+                slot_start.astimezone(salon_timezone).time().replace(tzinfo=None)
+            )
 
         slot_start += service_duration
 

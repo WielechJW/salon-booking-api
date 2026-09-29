@@ -19,7 +19,7 @@ def make_appointment(start_at: str) -> dict:
     return {
         "employee_id": 1,
         "service_id": 1,
-        "start_at": start_at,
+        "start_at": f"{start_at}+02:00",
         "client_name": "Jan Kowalski",
         "client_email": "jan@example.com",
         "client_phone": "123456789",
@@ -76,6 +76,36 @@ def test_booked_slot_is_not_available(client, database_session):
     ]
 
 
+def test_availability_uses_appointment_snapshot_after_service_update(
+    client,
+    database_session,
+):
+    add_friday_schedule(database_session)
+    appointment_response = client.post(
+        "/appointments",
+        json=make_appointment("2026-09-25T09:45:00"),
+    )
+    assert appointment_response.status_code == 201
+
+    update_response = client.put(
+        "/services/1",
+        json={
+            "name": "Strzyżenie męskie ekspresowe",
+            "description": "Krótszy wariant tej samej usługi",
+            "duration_minutes": 15,
+            "price": 50,
+        },
+    )
+    assert update_response.status_code == 200
+
+    response = get_availability(client)
+
+    assert response.status_code == 200
+    available_slots = response.json()["available_slots"]
+    assert "10:15:00" not in available_slots
+    assert "10:30:00" in available_slots
+
+
 def test_cancelled_appointment_does_not_block_slot(
     client,
     database_session,
@@ -123,6 +153,4 @@ def test_availability_rejects_unassigned_service(client):
     )
 
     assert response.status_code == 409
-    assert response.json() == {
-        "detail": "Employee does not provide this service"
-    }
+    assert response.json() == {"detail": "Employee does not provide this service"}

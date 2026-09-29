@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from app.config import Settings
 from app.database import create_database_engine
 
@@ -17,6 +20,21 @@ def test_settings_read_database_url_from_environment(monkeypatch):
     settings = Settings(_env_file=None)
 
     assert settings.database_url == database_url
+
+
+def test_settings_use_warsaw_timezone_by_default(monkeypatch):
+    monkeypatch.delenv("SALON_TIMEZONE", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.salon_timezone == "Europe/Warsaw"
+
+
+def test_settings_reject_unknown_timezone(monkeypatch):
+    monkeypatch.setenv("SALON_TIMEZONE", "Invalid/Timezone")
+
+    with pytest.raises(ValidationError, match="Unknown IANA timezone"):
+        Settings(_env_file=None)
 
 
 def test_sqlite_engine_enables_foreign_keys(tmp_path):

@@ -16,8 +16,27 @@ from app.schemas.appointment import (
     AppointmentStatus,
     AppointmentStatusUpdate,
 )
+from app.timezone import get_salon_timezone, utc_now
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
+
+ALLOWED_STATUS_TRANSITIONS: dict[AppointmentStatus, set[AppointmentStatus]] = {
+    "pending": {"confirmed", "cancelled"},
+    "confirmed": {"completed", "cancelled"},
+    "cancelled": set(),
+    "completed": set(),
+}
+
+
+def lock_employee_for_booking(
+    employee_id: int,
+    database_session: Session,
+) -> None:
+    database_session.execute(
+        select(EmployeeModel.id)
+        .where(EmployeeModel.id == employee_id)
+        .with_for_update()
+    ).scalar_one()
 
 
 @router.get("", response_model=list[AppointmentResponse])
@@ -77,12 +96,22 @@ def create_appointment(
         )
 
     new_start = appointment.start_at
+
+    if new_start < utc_now():
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot book an appointment in the past",
+        )
+
     new_end = new_start + timedelta(minutes=selected_service.duration_minutes)
+    salon_timezone = get_salon_timezone()
+    local_start = new_start.astimezone(salon_timezone)
+    local_end = new_end.astimezone(salon_timezone)
 
     work_schedule = database_session.scalar(
         select(ScheduleModel).where(
             ScheduleModel.employee_id == appointment.employee_id,
-            ScheduleModel.day_of_week == new_start.weekday(),
+            ScheduleModel.day_of_week == local_start.weekday(),
         )
     )
 
@@ -93,9 +122,9 @@ def create_appointment(
         )
 
     is_outside_working_hours = (
-        new_start.time() < work_schedule.start_time
-        or new_end.date() != new_start.date()
-        or new_end.time() > work_schedule.end_time
+        local_start.time().replace(tzinfo=None) < work_schedule.start_time
+        or local_end.date() != local_start.date()
+        or local_end.time().replace(tzinfo=None) > work_schedule.end_time
     )
 
     if is_outside_working_hours:
@@ -104,29 +133,33 @@ def create_appointment(
             detail="Appointment is outside employee working hours",
         )
 
-    existing_query = (
-        select(AppointmentModel, ServiceModel.duration_minutes)
-        .join(ServiceModel, AppointmentModel.service_id == ServiceModel.id)
+    lock_employee_for_booking(
+        employee_id=appointment.employee_id,
+        database_session=database_session,
+    )
+
+    conflicting_appointment_id = database_session.scalar(
+        select(AppointmentModel.id)
         .where(
             AppointmentModel.employee_id == appointment.employee_id,
             AppointmentModel.status != "cancelled",
+            AppointmentModel.start_at < new_end,
+            AppointmentModel.end_at > new_start,
         )
+        .limit(1)
     )
 
-    for existing_appointment, duration_minutes in database_session.execute(
-        existing_query
-    ):
-        existing_start = existing_appointment.start_at
-        existing_end = existing_start + timedelta(minutes=duration_minutes)
-
-        if new_start < existing_end and new_end > existing_start:
-            raise HTTPException(
-                status_code=409,
-                detail="Employee already has an appointment at this time",
-            )
+    if conflicting_appointment_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Employee already has an appointment at this time",
+        )
 
     new_appointment = AppointmentModel(
         **appointment.model_dump(),
+        duration_minutes=selected_service.duration_minutes,
+        price=selected_service.price,
+        end_at=new_end,
         status="pending",
     )
 
@@ -143,10 +176,29 @@ def update_appointment_status(
     status_update: AppointmentStatusUpdate,
     database_session: Session = Depends(get_db),
 ):
-    appointment = database_session.get(AppointmentModel, appointment_id)
+    appointment = database_session.scalar(
+        select(AppointmentModel)
+        .where(AppointmentModel.id == appointment_id)
+        .with_for_update()
+    )
 
     if appointment is None:
         raise HTTPException(status_code=404, detail="Appointment not found")
+
+    current_status = appointment.status
+    requested_status = status_update.status
+
+    if (
+        requested_status != current_status
+        and requested_status not in ALLOWED_STATUS_TRANSITIONS[current_status]
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Cannot change appointment status "
+                f"from {current_status} to {requested_status}"
+            ),
+        )
 
     appointment.status = status_update.status
     database_session.commit()

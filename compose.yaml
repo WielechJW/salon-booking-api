@@ -22,6 +22,7 @@ services:
       context: .
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-salon}:${POSTGRES_PASSWORD:-salon}@db:5432/${POSTGRES_DB:-salon}
+      SALON_TIMEZONE: ${SALON_TIMEZONE:-Europe/Warsaw}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:

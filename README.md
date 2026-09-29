@@ -382,12 +382,24 @@ Przykład:
 {
   "employee_id": 2,
   "service_id": 3,
-  "start_at": "2026-09-20T10:30:00",
+  "start_at": "2026-09-20T10:30:00+02:00",
   "client_name": "Jan Kowalski",
   "client_email": "jan@example.com",
   "client_phone": "123456789"
 }
 ```
+
+Podczas tworzenia wizyty API zapisuje w rezerwacji snapshot aktualnego czasu
+trwania i ceny usługi oraz wyliczony czas zakończenia. Późniejsza zmiana usługi
+nie zmienia warunków ani czasu istniejących rezerwacji.
+
+### Zasady czasu
+
+- grafik i parametr `date` w dostępności są interpretowane w strefie ustawionej
+  przez `SALON_TIMEZONE` (domyślnie `Europe/Warsaw`),
+- `start_at` musi zawierać offset, np. `+02:00` albo `Z`,
+- terminy są przechowywane i zwracane przez API w UTC,
+- nie można utworzyć rezerwacji w przeszłości.
 
 Backend musi sprawdzić:
 
@@ -401,10 +413,10 @@ Backend musi sprawdzić:
 Status rezerwacji:
 
 ```text
-pending
-confirmed
-cancelled
-completed
+pending   -> confirmed | cancelled
+confirmed -> completed | cancelled
+cancelled -> status końcowy
+completed -> status końcowy
 ```
 
 ---
