@@ -675,6 +675,7 @@ app/
 ├── main.py
 ├── config.py
 ├── database.py
+├── timezone.py
 ├── models/
 │   ├── __init__.py
 │   ├── service.py
@@ -689,13 +690,18 @@ app/
 │   ├── appointments.py
 │   ├── schedules.py
 │   └── availability.py
-└── schemas/
+├── schemas/
+│   ├── __init__.py
+│   ├── service.py
+│   ├── employee.py
+│   ├── appointment.py
+│   ├── schedule.py
+│   └── availability.py
+└── services/
     ├── __init__.py
-    ├── service.py
-    ├── employee.py
-    ├── appointment.py
-    ├── schedule.py
-    └── availability.py
+    ├── errors.py
+    ├── booking_service.py
+    └── availability_service.py
 
 tests/
 ├── conftest.py
@@ -703,8 +709,11 @@ tests/
 ├── test_services.py
 ├── test_employees.py
 ├── test_appointments.py
+├── test_booking_service.py
+├── test_database.py
 ├── test_schedules.py
-└── test_availability.py
+├── test_availability.py
+└── test_availability_service.py
 
 Dockerfile
 compose.yaml
@@ -717,6 +726,7 @@ compose.yaml
 - `app/models/` — opisuje tabele SQLAlchemy.
 - `app/schemas/` — waliduje requesty i formatuje odpowiedzi Pydantic.
 - `app/routers/` — zawiera endpointy usług, pracowników, grafików, dostępności i rezerwacji.
+- `app/services/` — zawiera reguły domenowe rezerwacji, statusów, kolizji i dostępności; może być testowane bez warstwy HTTP.
 - `tests/` — działa na tymczasowym SQLite oraz na PostgreSQL w CI.
 - `salon.db` — lokalna baza deweloperska; plik jest ignorowany przez Git.
 - `Dockerfile` i `compose.yaml` — uruchamiają API z PostgreSQL.
@@ -771,13 +781,19 @@ Kontrola jakości i testy:
 
 ```bash
 python -m ruff check .
+python -m pytest -q -m unit
+python -m pytest -q -m integration
 python -m pytest -q
 ```
 
-Te same polecenia wykonuje workflow GitHub Actions przy każdym pushu
-i pull requeście. CI dodatkowo uruchamia świeży PostgreSQL, wykonuje
-`alembic upgrade head`, sprawdza `alembic check` i ponownie wykonuje
-cały zestaw testów na PostgreSQL.
+Testy bez fixture bazy są automatycznie oznaczane jako `unit`. Testy używające
+`database_session` albo `client` otrzymują marker `integration`. Lokalnie ich
+tymczasowy SQLite jest tworzony przez `alembic upgrade head`, a foreign keys są
+włączone i sprawdzane testem ograniczeń.
+
+GitHub Actions ma dwa poziomy: szybki job uruchamia tylko testy `unit`, natomiast
+job integracyjny tworzy świeży PostgreSQL, wykonuje `alembic upgrade head` oraz
+`alembic check`, a następnie uruchamia testy oznaczone jako `integration`.
 
 Dokumentacja API: `http://127.0.0.1:8000/docs`.
 

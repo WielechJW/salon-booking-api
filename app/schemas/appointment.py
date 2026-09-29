@@ -1,16 +1,9 @@
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.services.booking_service import AppointmentStatus
 from app.timezone import as_utc
-
-AppointmentStatus = Literal[
-    "pending",
-    "confirmed",
-    "cancelled",
-    "completed",
-]
 
 
 class Appointment(BaseModel):

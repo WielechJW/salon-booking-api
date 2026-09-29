@@ -298,6 +298,7 @@ def test_appointment_cannot_skip_status_transition(client):
     not POSTGRES_TESTS_ENABLED,
     reason="Row-level locking requires PostgreSQL",
 )
+@pytest.mark.postgres
 def test_concurrent_overlapping_appointments_are_rejected_atomically(
     database_session,
     monkeypatch,

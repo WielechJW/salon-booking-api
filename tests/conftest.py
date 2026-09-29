@@ -1,8 +1,11 @@
 import os
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
@@ -15,6 +18,18 @@ from app.models.employee_service import EmployeeServiceModel
 from app.models.service import ServiceModel
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATABASE_FIXTURES = {"client", "database_session"}
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        marker = (
+            pytest.mark.integration
+            if DATABASE_FIXTURES.intersection(item.fixturenames)
+            else pytest.mark.unit
+        )
+        item.add_marker(marker)
 
 
 @pytest.fixture(autouse=True)
@@ -25,26 +40,38 @@ def freeze_current_time(monkeypatch):
     )
 
 
-def get_test_database_url(tmp_path) -> str:
-    if TEST_DATABASE_URL is None:
-        return f"sqlite:///{tmp_path / 'test.db'}"
-
-    database_name = make_url(TEST_DATABASE_URL).database or ""
+def validate_test_database_url(database_url: str) -> str:
+    database_name = make_url(database_url).database or ""
 
     if "test" not in database_name.lower():
         raise RuntimeError("Test database name must contain 'test'")
 
-    return TEST_DATABASE_URL
+    return database_url
 
 
-@pytest.fixture
-def database_session(tmp_path):
-    database_url = get_test_database_url(tmp_path)
-    test_engine = create_database_engine(database_url)
+def migrate_database(database_url: str) -> None:
+    alembic_config = Config(str(PROJECT_ROOT / "alembic.ini"))
+    alembic_config.set_main_option(
+        "script_location",
+        str(PROJECT_ROOT / "migrations"),
+    )
+    alembic_config.attributes["database_url"] = database_url
+    command.upgrade(alembic_config, "head")
 
-    if TEST_DATABASE_URL is None:
-        Base.metadata.create_all(bind=test_engine)
-    else:
+
+@pytest.fixture(scope="session")
+def test_database_url(tmp_path_factory) -> str:
+    if TEST_DATABASE_URL is not None:
+        return validate_test_database_url(TEST_DATABASE_URL)
+
+    database_path = tmp_path_factory.mktemp("database") / "test.db"
+    database_url = f"sqlite:///{database_path}"
+    migrate_database(database_url)
+    return database_url
+
+
+def clear_database(test_engine) -> None:
+    if test_engine.dialect.name == "postgresql":
         preparer = test_engine.dialect.identifier_preparer
         table_names = ", ".join(
             preparer.quote(table.name) for table in Base.metadata.sorted_tables
@@ -54,6 +81,17 @@ def database_session(tmp_path):
             connection.exec_driver_sql(
                 f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE"
             )
+        return
+
+    with test_engine.begin() as connection:
+        for table in reversed(Base.metadata.sorted_tables):
+            connection.execute(table.delete())
+
+
+@pytest.fixture
+def database_session(test_database_url):
+    test_engine = create_database_engine(test_database_url)
+    clear_database(test_engine)
 
     with Session(test_engine) as session:
         employees = [
