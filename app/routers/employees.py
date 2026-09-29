@@ -5,12 +5,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.appointment import AppointmentModel
 from app.models.employee import EmployeeModel
-from app.schemas.employee import Employee, EmployeeResponse
-
 from app.models.employee_service import EmployeeServiceModel
 from app.models.service import ServiceModel
+from app.schemas.employee import Employee, EmployeeResponse
 from app.schemas.service import ServiceResponse
-
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 

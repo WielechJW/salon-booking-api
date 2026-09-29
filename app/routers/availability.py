@@ -12,7 +12,6 @@ from app.models.schedule import ScheduleModel
 from app.models.service import ServiceModel
 from app.schemas.availability import AvailabilityResponse
 
-
 router = APIRouter(prefix="/employees", tags=["availability"])
 
 

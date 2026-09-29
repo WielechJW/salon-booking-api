@@ -703,19 +703,33 @@ tests/
 
 Wszystkie dane aplikacji są przechowywane w SQLite. Strukturą tabel zarządza Alembic przez wersjonowane migracje. Później SQLite zostanie zamienione na PostgreSQL.
 
-Uruchomienie z katalogu projektu:
+Projekt używa Pythona 3.14. Utworzenie środowiska deweloperskiego:
 
 ```bash
+python3.14 -m venv .venv
 source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+```
+
+Plik `requirements.txt` zawiera zależności potrzebne do uruchomienia API,
+a `requirements-dev.txt` dodatkowo narzędzia testowe i Ruff.
+
+Uruchomienie aplikacji:
+
+```bash
 python -m alembic upgrade head
 python -m uvicorn app.main:app --reload
 ```
 
-Testy:
+Kontrola jakości i testy:
 
 ```bash
-python -m pytest -v
+python -m ruff check .
+python -m pytest -q
 ```
+
+Te same polecenia wykonuje workflow GitHub Actions przy każdym pushu
+i pull requeście.
 
 Dokumentacja API: `http://127.0.0.1:8000/docs`.
 

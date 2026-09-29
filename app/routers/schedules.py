@@ -7,7 +7,6 @@ from app.models.employee import EmployeeModel
 from app.models.schedule import ScheduleModel
 from app.schemas.schedule import Schedule, ScheduleResponse
 
-
 router = APIRouter(prefix="/employees", tags=["schedules"])
 
 

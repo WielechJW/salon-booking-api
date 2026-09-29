@@ -17,7 +17,6 @@ from app.schemas.appointment import (
     AppointmentStatusUpdate,
 )
 
-
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
 

@@ -7,7 +7,6 @@ from app.models.appointment import AppointmentModel
 from app.models.service import ServiceModel
 from app.schemas.service import Service, ServiceResponse
 
-
 router = APIRouter(prefix="/services", tags=["services"])
 
 

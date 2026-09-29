@@ -4,7 +4,6 @@ from collections.abc import Generator
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "sqlite:///./salon.db",
