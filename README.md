@@ -661,6 +661,7 @@ PostgreSQL
 app/
 ├── __init__.py
 ├── main.py
+├── config.py
 ├── database.py
 ├── models/
 │   ├── __init__.py
@@ -686,22 +687,55 @@ app/
 
 tests/
 ├── conftest.py
+├── test_config.py
 ├── test_services.py
 ├── test_employees.py
 ├── test_appointments.py
 ├── test_schedules.py
 └── test_availability.py
+
+Dockerfile
+compose.yaml
+.env.example
 ```
 
 - `app/main.py` — tworzy aplikację FastAPI i dołącza routery.
-- `app/database.py` — konfiguruje SQLite, silnik i sesje SQLAlchemy.
+- `app/config.py` — wczytuje konfigurację aplikacji ze zmiennych środowiskowych i pliku `.env`.
+- `app/database.py` — tworzy silnik SQLite lub PostgreSQL i sesje SQLAlchemy.
 - `app/models/` — opisuje tabele SQLAlchemy.
 - `app/schemas/` — waliduje requesty i formatuje odpowiedzi Pydantic.
 - `app/routers/` — zawiera endpointy usług, pracowników, grafików, dostępności i rezerwacji.
-- `tests/` — używa osobnej, tymczasowej bazy SQLite.
+- `tests/` — działa na tymczasowym SQLite oraz na PostgreSQL w CI.
 - `salon.db` — lokalna baza deweloperska; plik jest ignorowany przez Git.
+- `Dockerfile` i `compose.yaml` — uruchamiają API z PostgreSQL.
 
-Wszystkie dane aplikacji są przechowywane w SQLite. Strukturą tabel zarządza Alembic przez wersjonowane migracje. Później SQLite zostanie zamienione na PostgreSQL.
+Domyślnie aplikacja używa SQLite, aby można ją było szybko uruchomić bez
+dodatkowych usług. Docelowym środowiskiem jest PostgreSQL uruchamiany przez
+Docker Compose. W obu przypadkach strukturą tabel zarządza Alembic.
+
+## Uruchomienie przez Docker Compose
+
+Skopiuj przykładową konfigurację i uruchom cały stack:
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Compose uruchamia PostgreSQL, czeka na jego healthcheck, wykonuje migracje
+Alembic i uruchamia API. Dokumentacja jest dostępna pod adresem
+`http://127.0.0.1:8000/docs`.
+Porty hosta można zmienić przez `API_PORT` i `POSTGRES_PORT` w pliku `.env`.
+
+Zatrzymanie kontenerów:
+
+```bash
+docker compose down
+```
+
+Dane PostgreSQL pozostają w wolumenie `postgres_data`.
+
+## Uruchomienie lokalne
 
 Projekt używa Pythona 3.14. Utworzenie środowiska deweloperskiego:
 
@@ -714,7 +748,7 @@ python -m pip install -r requirements-dev.txt
 Plik `requirements.txt` zawiera zależności potrzebne do uruchomienia API,
 a `requirements-dev.txt` dodatkowo narzędzia testowe i Ruff.
 
-Uruchomienie aplikacji:
+Bez ustawienia `DATABASE_URL` aplikacja używa lokalnego SQLite:
 
 ```bash
 python -m alembic upgrade head
@@ -729,7 +763,9 @@ python -m pytest -q
 ```
 
 Te same polecenia wykonuje workflow GitHub Actions przy każdym pushu
-i pull requeście.
+i pull requeście. CI dodatkowo uruchamia świeży PostgreSQL, wykonuje
+`alembic upgrade head`, sprawdza `alembic check` i ponownie wykonuje
+cały zestaw testów na PostgreSQL.
 
 Dokumentacja API: `http://127.0.0.1:8000/docs`.
 
@@ -788,7 +824,7 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 [x] Employees CRUD
 [x] Services CRUD
 [x] Appointments CRUD
-[ ] PostgreSQL
+[x] PostgreSQL
 [x] SQLAlchemy
 [x] Alembic
 [x] Employee ↔ Service
@@ -800,7 +836,7 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 [ ] JWT authentication
 [ ] Roles and permissions
 [x] Automated tests
-[ ] Docker
+[x] Docker
 [ ] React frontend
 [ ] Deployment
 ```

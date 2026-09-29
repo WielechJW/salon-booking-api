@@ -1,48 +1,83 @@
+import os
 from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 import app.models
-from app.database import Base, get_db
+from app.database import Base, create_database_engine, get_db
 from app.main import app
 from app.models.employee import EmployeeModel
 from app.models.employee_service import EmployeeServiceModel
 from app.models.service import ServiceModel
 
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
+
+
+def get_test_database_url(tmp_path) -> str:
+    if TEST_DATABASE_URL is None:
+        return f"sqlite:///{tmp_path / 'test.db'}"
+
+    database_name = make_url(TEST_DATABASE_URL).database or ""
+
+    if "test" not in database_name.lower():
+        raise RuntimeError("Test database name must contain 'test'")
+
+    return TEST_DATABASE_URL
+
 
 @pytest.fixture
 def database_session(tmp_path):
-    database_path = tmp_path / "test.db"
-    test_engine = create_engine(
-        f"sqlite:///{database_path}",
-        connect_args={"check_same_thread": False},
-    )
-    Base.metadata.create_all(bind=test_engine)
+    database_url = get_test_database_url(tmp_path)
+    test_engine = create_database_engine(database_url)
+
+    if TEST_DATABASE_URL is None:
+        Base.metadata.create_all(bind=test_engine)
+    else:
+        preparer = test_engine.dialect.identifier_preparer
+        table_names = ", ".join(
+            preparer.quote(table.name) for table in Base.metadata.sorted_tables
+        )
+
+        with test_engine.begin() as connection:
+            connection.exec_driver_sql(
+                f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE"
+            )
 
     with Session(test_engine) as session:
+        employees = [
+            EmployeeModel(name="Anna Kowalska"),
+            EmployeeModel(name="Bartek Nowak"),
+        ]
+        services = [
+            ServiceModel(
+                name="Strzyżenie męskie",
+                description="Profesjonalne strzyżenie męskie",
+                duration_minutes=45,
+                price=Decimal("80.00"),
+            ),
+            ServiceModel(
+                name="Strzyżenie damskie",
+                description="Profesjonalne strzyżenie damskie",
+                duration_minutes=60,
+                price=Decimal("120.00"),
+            ),
+        ]
+
+        session.add_all([*employees, *services])
+        session.flush()
         session.add_all(
             [
-                EmployeeModel(id=1, name="Anna Kowalska"),
-                EmployeeModel(id=2, name="Bartek Nowak"),
-                ServiceModel(
-                    id=1,
-                    name="Strzyżenie męskie",
-                    description="Profesjonalne strzyżenie męskie",
-                    duration_minutes=45,
-                    price=Decimal("80.00"),
+                EmployeeServiceModel(
+                    employee_id=employees[0].id,
+                    service_id=services[0].id,
                 ),
-                ServiceModel(
-                    id=2,
-                    name="Strzyżenie damskie",
-                    description="Profesjonalne strzyżenie damskie",
-                    duration_minutes=60,
-                    price=Decimal("120.00"),
+                EmployeeServiceModel(
+                    employee_id=employees[0].id,
+                    service_id=services[1].id,
                 ),
-                EmployeeServiceModel(employee_id=1, service_id=1),
-                EmployeeServiceModel(employee_id=1, service_id=2),
             ]
         )
         session.commit()

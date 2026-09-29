@@ -1,32 +1,39 @@
-import os
 from collections.abc import Generator
 
 from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///./salon.db",
-)
+from app.config import get_settings
 
-connect_args = {}
+DATABASE_URL = get_settings().database_url
 
-if DATABASE_URL.startswith("sqlite"):
-    connect_args["check_same_thread"] = False
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args=connect_args,
-)
+def create_database_engine(database_url: str) -> Engine:
+    connect_args = {}
 
-if DATABASE_URL.startswith("sqlite"):
+    if database_url.startswith("sqlite"):
+        connect_args["check_same_thread"] = False
 
-    @event.listens_for(engine, "connect")
-    def enable_sqlite_foreign_keys(dbapi_connection, connection_record):
-        del connection_record
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+    database_engine = create_engine(
+        database_url,
+        connect_args=connect_args,
+        pool_pre_ping=True,
+    )
+
+    if database_url.startswith("sqlite"):
+
+        @event.listens_for(database_engine, "connect")
+        def enable_sqlite_foreign_keys(dbapi_connection, connection_record):
+            del connection_record
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
+    return database_engine
+
+
+engine = create_database_engine(DATABASE_URL)
 
 
 SessionLocal = sessionmaker(
