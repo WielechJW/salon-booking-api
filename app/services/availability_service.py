@@ -5,9 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.schedule import ScheduleModel
-from app.services.booking_service import (
-    get_bookable_service,
+from app.services.booking_service import get_bookable_service
+from app.services.calendar_service import (
     get_overlapping_appointments,
+    get_overlapping_time_offs,
     time_ranges_overlap,
 )
 from app.timezone import as_utc, get_salon_timezone
@@ -67,6 +68,12 @@ def get_employee_availability(
         start_at=work_start,
         end_at=work_end,
     )
+    time_offs = get_overlapping_time_offs(
+        database_session=database_session,
+        employee_id=employee_id,
+        start_at=work_start,
+        end_at=work_end,
+    )
 
     service_duration = timedelta(minutes=selected_service.duration_minutes)
     available_slots = []
@@ -74,17 +81,17 @@ def get_employee_availability(
 
     while slot_start + service_duration <= work_end:
         slot_end = slot_start + service_duration
-        overlaps_appointment = any(
+        is_unavailable = any(
             time_ranges_overlap(
                 slot_start,
                 slot_end,
-                appointment.start_at,
-                appointment.end_at,
+                unavailable_period.start_at,
+                unavailable_period.end_at,
             )
-            for appointment in appointments
+            for unavailable_period in (*appointments, *time_offs)
         )
 
-        if not overlaps_appointment:
+        if not is_unavailable:
             available_slots.append(
                 slot_start.astimezone(salon_timezone).time().replace(tzinfo=None)
             )

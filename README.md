@@ -447,6 +447,17 @@ end_at
 reason
 ```
 
+Endpointy:
+
+```text
+POST   /employees/{employee_id}/time-off
+GET    /employees/{employee_id}/time-off
+PUT    /employees/{employee_id}/time-off/{time_off_id}
+DELETE /employees/{employee_id}/time-off/{time_off_id}
+```
+
+Tworzenie lub edycja blokady kolidującej z aktywną wizytą jest odrzucane.
+
 System dostępności musi automatycznie uwzględniać takie blokady.
 
 ---
@@ -681,6 +692,7 @@ app/
 │   ├── service.py
 │   ├── employee.py
 │   ├── employee_service.py
+│   ├── employee_time_off.py
 │   ├── appointment.py
 │   └── schedule.py
 ├── routers/
@@ -689,19 +701,23 @@ app/
 │   ├── employees.py
 │   ├── appointments.py
 │   ├── schedules.py
-│   └── availability.py
+│   ├── availability.py
+│   └── time_off.py
 ├── schemas/
 │   ├── __init__.py
 │   ├── service.py
 │   ├── employee.py
 │   ├── appointment.py
 │   ├── schedule.py
-│   └── availability.py
+│   ├── availability.py
+│   └── employee_time_off.py
 └── services/
     ├── __init__.py
     ├── errors.py
     ├── booking_service.py
-    └── availability_service.py
+    ├── availability_service.py
+    ├── calendar_service.py
+    └── time_off_service.py
 
 tests/
 ├── conftest.py
@@ -713,7 +729,8 @@ tests/
 ├── test_database.py
 ├── test_schedules.py
 ├── test_availability.py
-└── test_availability_service.py
+├── test_availability_service.py
+└── test_time_off.py
 
 Dockerfile
 compose.yaml
@@ -725,8 +742,8 @@ compose.yaml
 - `app/database.py` — tworzy silnik SQLite lub PostgreSQL i sesje SQLAlchemy.
 - `app/models/` — opisuje tabele SQLAlchemy.
 - `app/schemas/` — waliduje requesty i formatuje odpowiedzi Pydantic.
-- `app/routers/` — zawiera endpointy usług, pracowników, grafików, dostępności i rezerwacji.
-- `app/services/` — zawiera reguły domenowe rezerwacji, statusów, kolizji i dostępności; może być testowane bez warstwy HTTP.
+- `app/routers/` — zawiera endpointy usług, pracowników, grafików, blokad czasu, dostępności i rezerwacji.
+- `app/services/` — zawiera reguły domenowe rezerwacji, statusów, blokad czasu, kolizji i dostępności; może być testowane bez warstwy HTTP.
 - `tests/` — działa na tymczasowym SQLite oraz na PostgreSQL w CI.
 - `salon.db` — lokalna baza deweloperska; plik jest ignorowany przez Git.
 - `Dockerfile` i `compose.yaml` — uruchamiają API z PostgreSQL.
@@ -859,7 +876,7 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 [x] Employee schedules
 [x] Availability system
 [x] Booking validation
-[ ] Time off / breaks
+[x] Time off / breaks
 [ ] Users
 [ ] JWT authentication
 [ ] Roles and permissions

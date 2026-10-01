@@ -6,6 +6,7 @@ from app.routers.availability import router as availability_router
 from app.routers.employees import router as employees_router
 from app.routers.schedules import router as schedules_router
 from app.routers.services import router as services_router
+from app.routers.time_off import router as time_off_router
 from app.services.errors import (
     DomainConflictError,
     DomainNotFoundError,
@@ -51,6 +52,7 @@ app.include_router(employees_router)
 app.include_router(appointments_router)
 app.include_router(schedules_router)
 app.include_router(availability_router)
+app.include_router(time_off_router)
 
 
 @app.get("/")

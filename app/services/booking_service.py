@@ -1,6 +1,5 @@
-from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,6 +9,14 @@ from app.models.employee import EmployeeModel
 from app.models.employee_service import EmployeeServiceModel
 from app.models.schedule import ScheduleModel
 from app.models.service import ServiceModel
+from app.services.calendar_service import (
+    get_overlapping_appointments,
+    get_overlapping_time_offs,
+    lock_employee_calendar,
+)
+from app.services.calendar_service import (
+    time_ranges_overlap as time_ranges_overlap,
+)
 from app.services.errors import (
     DomainConflictError,
     DomainNotFoundError,
@@ -62,63 +69,6 @@ def get_bookable_service(
     return selected_service
 
 
-def get_overlapping_appointments(
-    *,
-    database_session: Session,
-    employee_id: int,
-    start_at: datetime,
-    end_at: datetime,
-) -> Sequence[AppointmentModel]:
-    query = select(AppointmentModel).where(
-        AppointmentModel.employee_id == employee_id,
-        AppointmentModel.status != "cancelled",
-        *overlap_conditions(
-            AppointmentModel.start_at,
-            AppointmentModel.end_at,
-            start_at,
-            end_at,
-        ),
-    )
-    return database_session.scalars(query).all()
-
-
-def overlap_conditions(
-    first_start: Any,
-    first_end: Any,
-    second_start: Any,
-    second_end: Any,
-) -> tuple[Any, Any]:
-    return first_start < second_end, first_end > second_start
-
-
-def time_ranges_overlap(
-    first_start: datetime,
-    first_end: datetime,
-    second_start: datetime,
-    second_end: datetime,
-) -> bool:
-    return all(
-        overlap_conditions(
-            as_utc(first_start),
-            as_utc(first_end),
-            as_utc(second_start),
-            as_utc(second_end),
-        )
-    )
-
-
-def lock_employee_for_booking(
-    *,
-    database_session: Session,
-    employee_id: int,
-) -> None:
-    database_session.execute(
-        select(EmployeeModel.id)
-        .where(EmployeeModel.id == employee_id)
-        .with_for_update()
-    ).scalar_one()
-
-
 def create_appointment(
     *,
     database_session: Session,
@@ -168,7 +118,7 @@ def create_appointment(
     if is_outside_working_hours:
         raise DomainConflictError("Appointment is outside employee working hours")
 
-    lock_employee_for_booking(
+    lock_employee_calendar(
         database_session=database_session,
         employee_id=employee_id,
     )
@@ -182,6 +132,16 @@ def create_appointment(
 
     if conflicts:
         raise DomainConflictError("Employee already has an appointment at this time")
+
+    time_offs = get_overlapping_time_offs(
+        database_session=database_session,
+        employee_id=employee_id,
+        start_at=new_start,
+        end_at=new_end,
+    )
+
+    if time_offs:
+        raise DomainConflictError("Employee is unavailable at this time")
 
     new_appointment = AppointmentModel(
         employee_id=employee_id,
