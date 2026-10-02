@@ -99,11 +99,18 @@ def create_appointment(
     local_start = new_start.astimezone(salon_timezone)
     local_end = new_end.astimezone(salon_timezone)
 
+    lock_employee_calendar(
+        database_session=database_session,
+        employee_id=employee_id,
+    )
+
     work_schedule = database_session.scalar(
-        select(ScheduleModel).where(
+        select(ScheduleModel)
+        .where(
             ScheduleModel.employee_id == employee_id,
             ScheduleModel.day_of_week == local_start.weekday(),
         )
+        .execution_options(populate_existing=True)
     )
 
     if work_schedule is None:
@@ -117,11 +124,6 @@ def create_appointment(
 
     if is_outside_working_hours:
         raise DomainConflictError("Appointment is outside employee working hours")
-
-    lock_employee_calendar(
-        database_session=database_session,
-        employee_id=employee_id,
-    )
 
     conflicts = get_overlapping_appointments(
         database_session=database_session,

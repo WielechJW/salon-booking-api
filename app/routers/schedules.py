@@ -6,6 +6,8 @@ from app.database import get_db
 from app.models.employee import EmployeeModel
 from app.models.schedule import ScheduleModel
 from app.schemas.schedule import Schedule, ScheduleResponse
+from app.services import schedule_service
+from app.timezone import utc_now
 
 router = APIRouter(prefix="/employees", tags=["schedules"])
 
@@ -49,6 +51,7 @@ def create_schedule(
 
     return new_schedule
 
+
 @router.get(
     "/{employee_id}/schedule",
     response_model=list[ScheduleResponse],
@@ -70,6 +73,7 @@ def get_employee_schedule(
 
     return database_session.scalars(query).all()
 
+
 @router.put(
     "/{employee_id}/schedule",
     response_model=ScheduleResponse,
@@ -79,28 +83,9 @@ def update_schedule(
     schedule: Schedule,
     database_session: Session = Depends(get_db),
 ):
-    employee = database_session.get(EmployeeModel, employee_id)
-
-    if employee is None:
-        raise HTTPException(status_code=404, detail="Employee not found")
-
-    existing_schedule = database_session.scalar(
-        select(ScheduleModel).where(
-            ScheduleModel.employee_id == employee_id,
-            ScheduleModel.day_of_week == schedule.day_of_week,
-        )
+    return schedule_service.update_employee_schedule(
+        database_session=database_session,
+        employee_id=employee_id,
+        current_time=utc_now(),
+        **schedule.model_dump(),
     )
-
-    if existing_schedule is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Schedule for this day not found",
-        )
-
-    existing_schedule.start_time = schedule.start_time
-    existing_schedule.end_time = schedule.end_time
-
-    database_session.commit()
-    database_session.refresh(existing_schedule)
-
-    return existing_schedule

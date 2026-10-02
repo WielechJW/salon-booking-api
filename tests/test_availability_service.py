@@ -33,10 +33,13 @@ def test_availability_service_uses_shared_collision_rules(database_session):
         employee_id=1,
         service_id=1,
         target_date=date(2026, 9, 25),
+        current_time=datetime(2026, 9, 24, 12, tzinfo=timezone.utc),
     )
 
     assert availability.available_slots == (
         time(9),
         time(10, 30),
+        time(10, 45),
+        time(11),
         time(11, 15),
     )

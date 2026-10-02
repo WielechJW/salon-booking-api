@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.availability import AvailabilityResponse
 from app.services import availability_service
+from app.timezone import utc_now
 
 router = APIRouter(prefix="/employees", tags=["availability"])
 
@@ -25,6 +26,7 @@ def get_employee_availability(
         employee_id=employee_id,
         service_id=service_id,
         target_date=target_date,
+        current_time=utc_now(),
     )
 
     return AvailabilityResponse(

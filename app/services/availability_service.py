@@ -11,7 +11,9 @@ from app.services.calendar_service import (
     get_overlapping_time_offs,
     time_ranges_overlap,
 )
-from app.timezone import as_utc, get_salon_timezone
+from app.timezone import as_utc, get_salon_timezone, utc_now
+
+SLOT_STEP = timedelta(minutes=15)
 
 
 @dataclass(frozen=True)
@@ -28,12 +30,24 @@ def get_employee_availability(
     employee_id: int,
     service_id: int,
     target_date: date,
+    current_time: datetime | None = None,
 ) -> Availability:
     selected_service = get_bookable_service(
         database_session=database_session,
         employee_id=employee_id,
         service_id=service_id,
     )
+    salon_timezone = get_salon_timezone()
+    now = as_utc(current_time) if current_time is not None else utc_now()
+
+    if target_date < now.astimezone(salon_timezone).date():
+        return Availability(
+            employee_id=employee_id,
+            service_id=service_id,
+            date=target_date,
+            available_slots=(),
+        )
+
     work_schedule = database_session.scalar(
         select(ScheduleModel).where(
             ScheduleModel.employee_id == employee_id,
@@ -49,7 +63,6 @@ def get_employee_availability(
             available_slots=(),
         )
 
-    salon_timezone = get_salon_timezone()
     local_work_start = datetime.combine(
         target_date,
         work_schedule.start_time,
@@ -80,6 +93,10 @@ def get_employee_availability(
     slot_start = work_start
 
     while slot_start + service_duration <= work_end:
+        if slot_start < now:
+            slot_start += SLOT_STEP
+            continue
+
         slot_end = slot_start + service_duration
         is_unavailable = any(
             time_ranges_overlap(
@@ -96,7 +113,7 @@ def get_employee_availability(
                 slot_start.astimezone(salon_timezone).time().replace(tzinfo=None)
             )
 
-        slot_start += service_duration
+        slot_start += SLOT_STEP
 
     return Availability(
         employee_id=employee_id,

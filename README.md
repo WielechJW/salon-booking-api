@@ -291,6 +291,12 @@ Praca z:
 - biblioteką `datetime`,
 - logiką biznesową.
 
+Zmiana grafiku jest odrzucana z kodem `409`, jeśli choć jedna niezakończona
+wizyta o statusie `pending` lub `confirmed` w danym dniu tygodnia przestałaby
+mieścić się w godzinach pracy. Dotyczy to także wizyt w trakcie realizacji;
+wizyty zakończone lub anulowane nie blokują zmiany. Dzień tygodnia i godziny
+wizyty są sprawdzane w strefie `SALON_TIMEZONE`.
+
 ---
 
 # Etap 7 — System dostępności
@@ -322,6 +328,12 @@ Istniejące rezerwacje:
 
 API powinno zwrócić tylko dostępne terminy.
 
+Terminy są proponowane co 15 minut od początku grafiku, niezależnie od czasu
+trwania usługi. Każda propozycja musi pomieścić całą usługę przed końcem pracy
+i nie może kolidować z wizytą ani blokadą czasu. Dla minionych dni lista jest
+pusta, a dla bieżącego dnia zawiera wyłącznie godziny nie wcześniejsze niż
+aktualny czas. Daty i godziny dostępności są podawane w strefie salonu.
+
 ### Endpoint
 
 ```text
@@ -340,13 +352,28 @@ Response:
 {
   "employee_id": 2,
   "date": "2026-09-20",
+  "service_id": 3,
   "available_slots": [
     "09:00",
+    "09:15",
+    "09:30",
     "09:45",
     "11:15",
+    "11:30",
+    "11:45",
     "12:00",
+    "12:15",
+    "13:45",
+    "14:00",
+    "14:15",
     "14:30",
-    "15:15"
+    "14:45",
+    "15:00",
+    "15:15",
+    "15:30",
+    "15:45",
+    "16:00",
+    "16:15"
   ]
 }
 ```
@@ -717,6 +744,7 @@ app/
     ├── booking_service.py
     ├── availability_service.py
     ├── calendar_service.py
+    ├── schedule_service.py
     └── time_off_service.py
 
 tests/
@@ -728,6 +756,7 @@ tests/
 ├── test_booking_service.py
 ├── test_database.py
 ├── test_schedules.py
+├── test_schedule_concurrency.py
 ├── test_availability.py
 ├── test_availability_service.py
 └── test_time_off.py

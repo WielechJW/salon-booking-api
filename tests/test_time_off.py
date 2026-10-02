@@ -242,6 +242,8 @@ def test_time_off_removes_slot_from_availability(client, database_session):
     assert response.json()["available_slots"] == [
         "09:00:00",
         "10:30:00",
+        "10:45:00",
+        "11:00:00",
         "11:15:00",
     ]
 

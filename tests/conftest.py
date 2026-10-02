@@ -34,10 +34,11 @@ def pytest_collection_modifyitems(items):
 
 @pytest.fixture(autouse=True)
 def freeze_current_time(monkeypatch):
-    monkeypatch.setattr(
-        "app.routers.appointments.utc_now",
-        lambda: datetime(2026, 9, 24, 12, tzinfo=timezone.utc),
-    )
+    for module in ("appointments", "availability", "schedules"):
+        monkeypatch.setattr(
+            f"app.routers.{module}.utc_now",
+            lambda: datetime(2026, 9, 24, 12, tzinfo=timezone.utc),
+        )
 
 
 def validate_test_database_url(database_url: str) -> str:
