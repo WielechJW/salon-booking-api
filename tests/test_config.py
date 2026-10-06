@@ -50,3 +50,24 @@ def test_sqlite_engine_enables_foreign_keys(tmp_path):
         engine.dispose()
 
     assert foreign_keys_enabled == 1
+
+
+def test_default_jwt_keys_are_random_and_hidden(monkeypatch):
+    monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    first = Settings(_env_file=None)
+    second = Settings(_env_file=None)
+    assert first.jwt_secret_key != second.jwt_secret_key
+    assert len(first.jwt_secret_key.get_secret_value()) >= 32
+    assert first.jwt_secret_key.get_secret_value() not in repr(first)
+
+
+def test_short_jwt_key_is_rejected(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET_KEY", "too-short")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+@pytest.mark.parametrize("minutes", [0, -1, 1441])
+def test_invalid_token_lifetime_is_rejected(minutes):
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, access_token_expire_minutes=minutes)

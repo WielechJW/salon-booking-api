@@ -2,10 +2,15 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import require_employee_access
 from app.schemas.employee_time_off import EmployeeTimeOff, EmployeeTimeOffResponse
 from app.services import time_off_service
 
-router = APIRouter(prefix="/employees", tags=["time off"])
+router = APIRouter(
+    prefix="/employees",
+    tags=["time off"],
+    dependencies=[Depends(require_employee_access)],
+)
 
 
 @router.post(

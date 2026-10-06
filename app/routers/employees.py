@@ -3,12 +3,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import require_admin
 from app.models.appointment import AppointmentModel
 from app.models.employee import EmployeeModel
 from app.models.employee_service import EmployeeServiceModel
 from app.models.service import ServiceModel
-from app.schemas.employee import Employee, EmployeeResponse
+from app.schemas.employee import Employee, EmployeeAccountAssignment, EmployeeResponse
 from app.schemas.service import ServiceResponse
+from app.services.employee_account_service import assign_employee_account
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
@@ -32,7 +34,12 @@ def get_employee(
     return employee
 
 
-@router.post("", status_code=201, response_model=EmployeeResponse)
+@router.post(
+    "",
+    status_code=201,
+    response_model=EmployeeResponse,
+    dependencies=[Depends(require_admin)],
+)
 def create_employee(
     employee: Employee,
     database_session: Session = Depends(get_db),
@@ -46,7 +53,11 @@ def create_employee(
     return new_employee
 
 
-@router.put("/{employee_id}", response_model=EmployeeResponse)
+@router.put(
+    "/{employee_id}",
+    response_model=EmployeeResponse,
+    dependencies=[Depends(require_admin)],
+)
 def update_employee(
     employee_id: int,
     updated_employee: Employee,
@@ -64,7 +75,7 @@ def update_employee(
     return employee
 
 
-@router.delete("/{employee_id}")
+@router.delete("/{employee_id}", dependencies=[Depends(require_admin)])
 def delete_employee(
     employee_id: int,
     database_session: Session = Depends(get_db),
@@ -91,7 +102,12 @@ def delete_employee(
 
     return {"message": "Employee deleted successfully"}
 
-@router.post("/{employee_id}/services/{service_id}", status_code=201)
+
+@router.post(
+    "/{employee_id}/services/{service_id}",
+    status_code=201,
+    dependencies=[Depends(require_admin)],
+)
 def assign_service_to_employee(
     employee_id: int,
     service_id: int,
@@ -128,6 +144,7 @@ def assign_service_to_employee(
 
     return {"message": "Service assigned to employee"}
 
+
 @router.get(
     "/{employee_id}/services",
     response_model=list[ServiceResponse],
@@ -153,7 +170,10 @@ def get_employee_services(
 
     return database_session.scalars(query).all()
 
-@router.delete("/{employee_id}/services/{service_id}")
+
+@router.delete(
+    "/{employee_id}/services/{service_id}", dependencies=[Depends(require_admin)]
+)
 def remove_service_from_employee(
     employee_id: int,
     service_id: int,
@@ -184,3 +204,17 @@ def remove_service_from_employee(
     database_session.commit()
 
     return {"message": "Service removed from employee"}
+
+
+@router.put("/{employee_id}/account", dependencies=[Depends(require_admin)])
+def assign_account(
+    employee_id: int,
+    assignment: EmployeeAccountAssignment,
+    database_session: Session = Depends(get_db),
+):
+    assign_employee_account(
+        database_session=database_session,
+        employee_id=employee_id,
+        user_id=assignment.user_id,
+    )
+    return {"employee_id": employee_id, "user_id": assignment.user_id}

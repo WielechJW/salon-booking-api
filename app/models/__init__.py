@@ -4,6 +4,7 @@ from app.models.employee_service import EmployeeServiceModel
 from app.models.employee_time_off import EmployeeTimeOffModel
 from app.models.schedule import ScheduleModel
 from app.models.service import ServiceModel
+from app.models.user import UserModel
 
 __all__ = [
     "AppointmentModel",
@@ -12,4 +13,5 @@ __all__ = [
     "EmployeeTimeOffModel",
     "ServiceModel",
     "ScheduleModel",
+    "UserModel",
 ]

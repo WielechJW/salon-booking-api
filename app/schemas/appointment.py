@@ -1,15 +1,14 @@
 from datetime import datetime
-from typing import Annotated
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     EmailStr,
     Field,
-    StringConstraints,
     field_validator,
 )
 
+from app.schemas.contact import PersonName, PhoneNumber
 from app.schemas.price import Price
 from app.services.booking_service import AppointmentStatus
 from app.timezone import as_utc
@@ -19,19 +18,12 @@ class Appointment(BaseModel):
     employee_id: int = Field(gt=0)
     service_id: int = Field(gt=0)
     start_at: datetime
-    client_name: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=2, max_length=100)
-    ]
+    client_id: int | None = Field(default=None, gt=0)
+    client_name: PersonName
     client_email: EmailStr = Field(max_length=254)
-    client_phone: str = Field(pattern=r"^\+?[0-9]{7,15}$")
+    client_phone: PhoneNumber
 
-    @field_validator("client_phone", mode="before")
-    @classmethod
-    def normalize_phone(cls, value: object) -> object:
-        if isinstance(value, str):
-            return value.strip().translate(str.maketrans("", "", " ()-"))
-
-        return value
+    model_config = ConfigDict(extra="forbid")
 
     @field_validator("start_at")
     @classmethod
@@ -44,6 +36,7 @@ class Appointment(BaseModel):
 
 class AppointmentResponse(BaseModel):
     id: int
+    client_id: int | None
     employee_id: int
     service_id: int
     start_at: datetime

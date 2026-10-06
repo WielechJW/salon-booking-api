@@ -357,6 +357,7 @@ def test_appointment_cannot_skip_status_transition(client):
 def test_concurrent_overlapping_appointments_are_rejected_atomically(
     database_session,
     monkeypatch,
+    admin_headers,
 ):
     test_engine = database_session.get_bind()
     original_add = Session.add
@@ -385,8 +386,8 @@ def test_concurrent_overlapping_appointments_are_rejected_atomically(
 
     try:
         with (
-            TestClient(app) as first_client,
-            TestClient(app) as second_client,
+            TestClient(app, headers=admin_headers) as first_client,
+            TestClient(app, headers=admin_headers) as second_client,
             ThreadPoolExecutor(max_workers=2) as executor,
         ):
             futures = [

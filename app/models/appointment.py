@@ -29,6 +29,9 @@ class AppointmentModel(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    client_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
     employee_id: Mapped[int] = mapped_column(
         ForeignKey("employees.id", ondelete="RESTRICT"),
         nullable=False,

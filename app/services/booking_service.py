@@ -9,6 +9,7 @@ from app.models.employee import EmployeeModel
 from app.models.employee_service import EmployeeServiceModel
 from app.models.schedule import ScheduleModel
 from app.models.service import ServiceModel
+from app.models.user import UserModel
 from app.services.calendar_service import (
     get_overlapping_appointments,
     get_overlapping_time_offs,
@@ -78,6 +79,7 @@ def create_appointment(
     client_name: str,
     client_email: str,
     client_phone: str,
+    client_id: int | None = None,
     current_time: datetime | None = None,
 ) -> AppointmentModel:
     if start_at.tzinfo is None or start_at.utcoffset() is None:
@@ -88,6 +90,8 @@ def create_appointment(
         employee_id=employee_id,
         service_id=service_id,
     )
+    if client_id is not None and database_session.get(UserModel, client_id) is None:
+        raise DomainNotFoundError("Client account not found")
     new_start = as_utc(start_at)
     now = as_utc(current_time) if current_time is not None else utc_now()
 
@@ -146,6 +150,7 @@ def create_appointment(
         raise DomainConflictError("Employee is unavailable at this time")
 
     new_appointment = AppointmentModel(
+        client_id=client_id,
         employee_id=employee_id,
         service_id=service_id,
         start_at=new_start,
@@ -178,6 +183,7 @@ def update_appointment_status(
         select(AppointmentModel)
         .where(AppointmentModel.id == appointment_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
     if appointment is None:

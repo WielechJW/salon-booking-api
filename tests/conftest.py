@@ -1,4 +1,5 @@
 import os
+from contextlib import ExitStack
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -16,6 +17,8 @@ from app.main import app
 from app.models.employee import EmployeeModel
 from app.models.employee_service import EmployeeServiceModel
 from app.models.service import ServiceModel
+from app.models.user import UserModel
+from app.security import create_access_token, hash_password
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +27,8 @@ DATABASE_FIXTURES = {"client", "database_session"}
 
 def pytest_collection_modifyitems(items):
     for item in items:
+        if item.get_closest_marker("unit") or item.get_closest_marker("integration"):
+            continue
         marker = (
             pytest.mark.integration
             if DATABASE_FIXTURES.intersection(item.fixturenames)
@@ -90,14 +95,35 @@ def clear_database(test_engine) -> None:
 
 
 @pytest.fixture
-def database_session(test_database_url):
+def database_session(test_database_url, test_password_hash):
     test_engine = create_database_engine(test_database_url)
     clear_database(test_engine)
 
     with Session(test_engine) as session:
+        session.add_all(
+            [
+                UserModel(
+                    email=email,
+                    password_hash=test_password_hash,
+                    first_name="Test",
+                    last_name="User",
+                    phone="123456789",
+                    role=role,
+                    is_active=True,
+                )
+            for email, role in (
+                ("admin@example.com", "ADMIN"),
+                ("jan@example.com", "CLIENT"),
+                ("other@example.com", "CLIENT"),
+                ("anna@example.com", "EMPLOYEE"),
+                ("bartek@example.com", "EMPLOYEE"),
+                )
+            ]
+        )
+        session.flush()
         employees = [
-            EmployeeModel(name="Anna Kowalska"),
-            EmployeeModel(name="Bartek Nowak"),
+            EmployeeModel(name="Anna Kowalska", user_id=4),
+            EmployeeModel(name="Bartek Nowak", user_id=5),
         ]
         services = [
             ServiceModel(
@@ -136,14 +162,38 @@ def database_session(test_database_url):
 
 
 @pytest.fixture
-def client(database_session):
+def client_factory(database_session):
     def override_get_db():
         yield database_session
 
     app.dependency_overrides[get_db] = override_get_db
 
     try:
-        with TestClient(app) as test_client:
-            yield test_client
+        with ExitStack() as stack:
+
+            def create_client(headers=None):
+                return stack.enter_context(TestClient(app, headers=headers))
+
+            yield create_client
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.fixture(scope="session")
+def test_password_hash():
+    return hash_password("TestPassword123!")
+
+
+@pytest.fixture
+def admin_headers():
+    return {"Authorization": f"Bearer {create_access_token(1)}"}
+
+
+@pytest.fixture
+def client(client_factory, admin_headers):
+    return client_factory(admin_headers)
+
+
+@pytest.fixture
+def anonymous_client(client_factory):
+    return client_factory()

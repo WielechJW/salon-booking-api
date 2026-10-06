@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import require_admin
 from app.models.appointment import AppointmentModel
 from app.models.service import ServiceModel
 from app.schemas.service import Service, ServiceResponse
@@ -29,7 +30,12 @@ def get_service(
     return service
 
 
-@router.post("", status_code=201, response_model=ServiceResponse)
+@router.post(
+    "",
+    status_code=201,
+    response_model=ServiceResponse,
+    dependencies=[Depends(require_admin)],
+)
 def create_service(
     service: Service,
     database_session: Session = Depends(get_db),
@@ -48,7 +54,11 @@ def create_service(
     return new_service
 
 
-@router.put("/{service_id}", response_model=ServiceResponse)
+@router.put(
+    "/{service_id}",
+    response_model=ServiceResponse,
+    dependencies=[Depends(require_admin)],
+)
 def update_service(
     service_id: int,
     updated_service: Service,
@@ -70,7 +80,7 @@ def update_service(
     return service
 
 
-@router.delete("/{service_id}")
+@router.delete("/{service_id}", dependencies=[Depends(require_admin)])
 def delete_service(
     service_id: int,
     database_session: Session = Depends(get_db),

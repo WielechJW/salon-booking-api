@@ -1,7 +1,8 @@
 from functools import lru_cache
+from secrets import token_urlsafe
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,10 @@ class Settings(BaseSettings):
         min_length=1,
     )
     salon_timezone: str = Field(default="Europe/Warsaw", min_length=1)
+    jwt_secret_key: SecretStr = Field(
+        default_factory=lambda: SecretStr(token_urlsafe(32)), min_length=32
+    )
+    access_token_expire_minutes: int = Field(default=30, gt=0, le=1440)
 
     @field_validator("salon_timezone")
     @classmethod

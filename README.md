@@ -506,7 +506,8 @@ System dostępności musi automatycznie uwzględniać takie blokady.
 
 # Etap 10 — Użytkownicy
 
-Dodanie kont klientów.
+Konta klientów są zaimplementowane. Email jest normalizowany do małych liter
+i ma ograniczenie unikalności w bazie. Hasła są przechowywane jako hashe Argon2.
 
 Model:
 
@@ -519,6 +520,8 @@ password_hash
 first_name
 last_name
 phone
+role
+is_active
 ```
 
 Klient będzie mógł:
@@ -529,11 +532,24 @@ GET /users/me
 GET /users/me/appointments
 ```
 
+Oba endpointy wymagają tokenu Bearer. Profil nie zawiera hasła ani jego hasha.
+Lista `/users/me/appointments` zawiera tylko wizyty powiązane z zalogowanym
+kontem, niezależnie od jego roli.
+
+Nowe wizyty otrzymują `client_id` zalogowanego użytkownika. Administrator może
+zarezerwować wizytę dla innego konta, przekazując jego `client_id`. Klient
+nie może wskazać innego właściciela wizyty. Dane kontaktowe w rezerwacji pozostają
+snapshotem podanym przy jej tworzeniu.
+
+Migracja zachowuje istniejące wizyty z `client_id = null`. Nie przypisuje ich
+automatycznie do kont po zgodności emaila. Takie wizyty widzi administrator
+oraz przypisany pracownik, ale nie pojawiają się w historii klienta.
+
 ---
 
 # Etap 11 — Authentication
 
-Dodanie:
+Zaimplementowane:
 
 ```text
 JWT Authentication
@@ -547,6 +563,31 @@ POST /auth/login
 
 GET /users/me
 ```
+
+Rejestracja przyjmuje JSON:
+
+```json
+{
+  "email": "jan@example.com",
+  "password": "ExamplePassword123!",
+  "first_name": "Jan",
+  "last_name": "Kowalski",
+  "phone": "+48123456789"
+}
+```
+
+Hasło ma od 8 do 128 znaków. Rejestracja zawsze nadaje rolę `CLIENT`;
+próba przekazania `role`, `is_active` lub innych dodatkowych pól zwraca `422`.
+Powtórny email, także z inną wielkością liter, zwraca `409`.
+
+`POST /auth/login` przyjmuje formularz `application/x-www-form-urlencoded`
+z polami `username` (email) i `password`. Odpowiedź zawiera `access_token`
+oraz `token_type: "bearer"`. W Swagger UI można użyć przycisku **Authorize**.
+Chronione żądania wymagają nagłówka `Authorization: Bearer <access_token>`.
+
+JWT jest podpisany HS256 i domyślnie ważny przez 30 minut. Brak tokenu,
+niepoprawny podpis, wygaśnięcie lub nieaktywne konto zwracają `401`.
+Rola jest odczytywana z bazy przy każdym żądaniu; nie jest przyjmowana z tokenu.
 
 Role użytkowników:
 
@@ -585,6 +626,35 @@ grafiki
 wszystkie rezerwacje
 zarządzanie salonem
 ```
+
+Publiczne pozostają odczyty usług, pracowników, przypisanych usług i dostępności.
+Odczyt i zapis grafików oraz urlopów wymaga roli `ADMIN` lub konta pracownika
+przypisanego do danego kalendarza. Tworzenie, edycja i usuwanie pracowników,
+usług oraz przypisań usług wymaga `ADMIN`.
+
+`GET /appointments` jest ograniczony do własnych wizyt klienta, własnego
+kalendarza pracownika lub wszystkich wizyt administratora. Filtry nie rozszerzają
+tego zakresu. Klient może zmienić status tylko na `cancelled`. Pracownik może
+zmieniać statusy wizyt w swoim kalendarzu, a administrator wszystkich wizyt.
+Próba dostępu do cudzej wizyty po ID zwraca `404`; niedozwolona operacja roli
+zwraca `403`. Nadal obowiązują reguły przejść statusów opisane w etapie 8.
+
+Pierwszego administratora utwórz po migracjach poleceniem lokalnym:
+
+```bash
+python -m app.cli create-admin --email admin@example.com \
+  --first-name Admin --last-name Salon --phone +48123456789
+```
+
+Hasło i potwierdzenie są pobierane interaktywnie. W Docker Compose użyj
+`docker compose exec api python -m app.cli create-admin` z tymi samymi opcjami.
+Polecenie tworzy nowe konto; nie podnosi uprawnień istniejącego klienta.
+
+Administrator przypisuje zarejestrowane konto do pracownika przez
+`PUT /employees/{employee_id}/account` z JSON `{"user_id": 2}`. Operacja nadaje
+rolę `EMPLOYEE`. Jedno konto może być przypisane do jednego pracownika;
+zastąpienie istniejącego przypisania lub przypisanie konta administratora
+jest odrzucane kodem `409`.
 
 ---
 
@@ -728,6 +798,9 @@ app/
 ├── main.py
 ├── config.py
 ├── database.py
+├── dependencies.py
+├── security.py
+├── cli.py
 ├── timezone.py
 ├── models/
 │   ├── __init__.py
@@ -736,12 +809,15 @@ app/
 │   ├── employee_service.py
 │   ├── employee_time_off.py
 │   ├── appointment.py
+│   ├── user.py
 │   └── schedule.py
 ├── routers/
 │   ├── __init__.py
 │   ├── services.py
 │   ├── employees.py
 │   ├── appointments.py
+│   ├── auth.py
+│   ├── users.py
 │   ├── schedules.py
 │   ├── availability.py
 │   └── time_off.py
@@ -750,6 +826,9 @@ app/
 │   ├── service.py
 │   ├── employee.py
 │   ├── appointment.py
+│   ├── user.py
+│   ├── contact.py
+│   ├── price.py
 │   ├── schedule.py
 │   ├── availability.py
 │   └── employee_time_off.py
@@ -757,6 +836,9 @@ app/
     ├── __init__.py
     ├── errors.py
     ├── booking_service.py
+    ├── auth_service.py
+    ├── authorization.py
+    ├── employee_account_service.py
     ├── availability_service.py
     ├── calendar_service.py
     ├── schedule_service.py
@@ -768,6 +850,10 @@ tests/
 ├── test_services.py
 ├── test_employees.py
 ├── test_appointments.py
+├── test_auth.py
+├── test_permissions.py
+├── test_cli.py
+├── test_user_migration.py
 ├── test_booking_service.py
 ├── test_database.py
 ├── test_schedules.py
@@ -784,6 +870,8 @@ compose.yaml
 - `app/main.py` — tworzy aplikację FastAPI i dołącza routery.
 - `app/config.py` — wczytuje konfigurację aplikacji ze zmiennych środowiskowych i pliku `.env`.
 - `app/database.py` — tworzy silnik SQLite lub PostgreSQL i sesje SQLAlchemy.
+- `app/security.py` i `app/dependencies.py` — obsługują hashowanie haseł, JWT i uprawnienia.
+- `app/cli.py` — tworzy konto administratora z terminala.
 - `app/models/` — opisuje tabele SQLAlchemy.
 - `app/schemas/` — waliduje requesty i formatuje odpowiedzi Pydantic.
 - `app/routers/` — zawiera endpointy usług, pracowników, grafików, blokad czasu, dostępności i rezerwacji.
@@ -802,6 +890,7 @@ Skopiuj przykładową konfigurację i uruchom cały stack:
 
 ```bash
 cp .env.example .env
+python3 -c "import secrets; print('JWT_SECRET_KEY=' + secrets.token_urlsafe(48))" >> .env
 docker compose up --build
 ```
 
@@ -809,6 +898,8 @@ Compose uruchamia PostgreSQL, czeka na jego healthcheck, wykonuje migracje
 Alembic i uruchamia API. Dokumentacja jest dostępna pod adresem
 `http://127.0.0.1:8000/docs`.
 Porty hosta można zmienić przez `API_PORT` i `POSTGRES_PORT` w pliku `.env`.
+`JWT_SECRET_KEY` musi mieć co najmniej 32 znaki. Compose wymaga jawnego ustawienia
+klucza; `ACCESS_TOKEN_EXPIRE_MINUTES` określa ważność tokenu (1–1440 minut).
 
 Zatrzymanie kontenerów:
 
@@ -830,6 +921,11 @@ python -m pip install -r requirements-dev.txt
 
 Plik `requirements.txt` zawiera zależności potrzebne do uruchomienia API,
 a `requirements-dev.txt` dodatkowo narzędzia testowe i Ruff.
+
+Przy lokalnym uruchomieniu ustaw trwały `JWT_SECRET_KEY` w `.env` lub zmiennej
+środowiskowej. Bez tej zmiennej aplikacja generuje losowy klucz na czas życia
+procesu, więc restart unieważnia tokeny. Wszystkie procesy API powinny używać
+tego samego skonfigurowanego klucza.
 
 Bez ustawienia `DATABASE_URL` aplikacja używa lokalnego SQLite:
 
@@ -921,9 +1017,9 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 [x] Availability system
 [x] Booking validation
 [x] Time off / breaks
-[ ] Users
-[ ] JWT authentication
-[ ] Roles and permissions
+[x] Users
+[x] JWT authentication
+[x] Roles and permissions
 [x] Automated tests
 [x] Docker
 [ ] React frontend

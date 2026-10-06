@@ -272,6 +272,7 @@ def test_database_rejects_invalid_time_off_range(database_session):
 def test_concurrent_appointment_and_time_off_are_rejected_atomically(
     database_session,
     monkeypatch,
+    admin_headers,
 ):
     add_friday_schedule(database_session)
     test_engine = database_session.get_bind()
@@ -302,8 +303,8 @@ def test_concurrent_appointment_and_time_off_are_rejected_atomically(
 
     try:
         with (
-            TestClient(app) as first_client,
-            TestClient(app) as second_client,
+            TestClient(app, headers=admin_headers) as first_client,
+            TestClient(app, headers=admin_headers) as second_client,
             ThreadPoolExecutor(max_workers=2) as executor,
         ):
             futures = [

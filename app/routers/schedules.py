@@ -3,13 +3,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import require_employee_access
 from app.models.employee import EmployeeModel
 from app.models.schedule import ScheduleModel
 from app.schemas.schedule import Schedule, ScheduleResponse
 from app.services import schedule_service
 from app.timezone import utc_now
 
-router = APIRouter(prefix="/employees", tags=["schedules"])
+router = APIRouter(
+    prefix="/employees",
+    tags=["schedules"],
+    dependencies=[Depends(require_employee_access)],
+)
 
 
 @router.post(
