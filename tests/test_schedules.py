@@ -107,6 +107,42 @@ def test_invalid_schedule_time_range_returns_422(client):
     assert response.json()["detail"][0]["loc"] == ["body"]
 
 
+@pytest.mark.parametrize("method", ["post", "put"])
+@pytest.mark.parametrize(
+    ("start_time", "end_time", "invalid_fields"),
+    [
+        ("09:00:00+02:00", "17:00:00", {"start_time"}),
+        ("09:00:00", "17:00:00+02:00", {"end_time"}),
+        ("09:00:00+02:00", "17:00:00+02:00", {"start_time", "end_time"}),
+        ("09:00:00Z", "17:00:00", {"start_time"}),
+        ("09:00:00", "17:00:00-05:00", {"end_time"}),
+    ],
+)
+def test_schedule_rejects_timezone_offsets(
+    client, method, start_time, end_time, invalid_fields
+):
+    if method == "put":
+        assert client.post(
+            "/employees/1/schedule", json=make_schedule(day_of_week=0)
+        ).status_code == 201
+
+    response = getattr(client, method)(
+        "/employees/1/schedule",
+        json=make_schedule(0, start_time=start_time, end_time=end_time),
+    )
+
+    assert response.status_code == 422
+    assert {
+        error["loc"][-1] for error in response.json()["detail"]
+    } == invalid_fields
+    schedules = client.get("/employees/1/schedule").json()
+    if method == "post":
+        assert schedules == []
+    else:
+        assert schedules[0]["start_time"] == "09:00:00"
+        assert schedules[0]["end_time"] == "17:00:00"
+
+
 def create_friday_appointment(client, start_at="2026-09-25T10:00:00+02:00"):
     assert (
         client.post(

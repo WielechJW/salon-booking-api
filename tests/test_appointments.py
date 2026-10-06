@@ -214,6 +214,61 @@ def test_appointment_requires_timezone_offset(client):
     assert response.json()["detail"][0]["loc"] == ["body", "start_at"]
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("client_name", "  \t\n"),
+        ("client_name", " A "),
+        ("client_email", "abcde"),
+        ("client_email", "jan@@example.com"),
+        ("client_phone", "abcdefg"),
+        ("client_phone", "123456"),
+        ("client_phone", "+1234567890123456"),
+        ("client_phone", "123+456789"),
+        ("client_phone", "++48123456789"),
+        ("client_phone", "１２３４５６７８９"),
+    ],
+)
+def test_appointment_rejects_invalid_contact_details(client, field, value):
+    payload = make_appointment("2026-09-25T10:00:00")
+    payload[field] = value
+
+    response = client.post("/appointments", json=payload)
+
+    assert response.status_code == 422
+    assert {error["loc"][-1] for error in response.json()["detail"]} == {field}
+    assert client.get("/appointments").json() == []
+
+
+@pytest.mark.parametrize(
+    ("phone", "normalized_phone"),
+    [
+        ("1234567", "1234567"),
+        ("+123456789012345", "+123456789012345"),
+        (" +48 (123) 456-789 ", "+48123456789"),
+    ],
+)
+def test_appointment_normalizes_and_persists_contact_details(
+    client, phone, normalized_phone
+):
+    payload = make_appointment("2026-09-25T10:00:00")
+    payload.update(
+        client_name="  Jan Kowalski  ",
+        client_email="  jan@EXAMPLE.COM  ",
+        client_phone=phone,
+    )
+
+    response = client.post("/appointments", json=payload)
+
+    assert response.status_code == 201
+    created = response.json()
+    stored = client.get(f"/appointments/{created['id']}").json()
+    for appointment in (created, stored):
+        assert appointment["client_name"] == "Jan Kowalski"
+        assert appointment["client_email"] == "jan@example.com"
+        assert appointment["client_phone"] == normalized_phone
+
+
 def test_appointment_in_the_past_is_rejected(client):
     response = client.post(
         "/appointments",

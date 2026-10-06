@@ -1,3 +1,10 @@
+from decimal import Decimal
+
+import pytest
+
+from app.models.service import ServiceModel
+
+
 def test_service_crud_uses_http_api(client):
     create_response = client.post(
         "/services",
@@ -63,3 +70,44 @@ def test_invalid_service_payload_returns_422(client):
         error["loc"][-1] for error in response.json()["detail"]
     }
     assert error_fields == {"name", "duration_minutes", "price"}
+
+
+@pytest.mark.parametrize("method", ["post", "put"])
+@pytest.mark.parametrize(
+    "price",
+    [-0.01, 12.345, "0.001", "100000000", "Infinity", "-Infinity", "NaN"],
+)
+def test_invalid_price_returns_422_on_create_and_update(client, method, price):
+    response = getattr(client, method)(
+        "/services" if method == "post" else "/services/1",
+        json={
+            "name": "Modelowanie",
+            "description": "Profesjonalne modelowanie włosów",
+            "duration_minutes": 30,
+            "price": price,
+        },
+    )
+
+    assert response.status_code == 422
+    assert {error["loc"][-1] for error in response.json()["detail"]} == {"price"}
+    assert client.get("/services/1").json()["price"] == 80.0
+
+
+@pytest.mark.parametrize("price", [0, "12.34", "12.3400", "99999999.99"])
+def test_valid_price_is_persisted_without_rounding(client, database_session, price):
+    response = client.post(
+        "/services",
+        json={
+            "name": "Modelowanie",
+            "description": "Profesjonalne modelowanie włosów",
+            "duration_minutes": 30,
+            "price": price,
+        },
+    )
+
+    assert response.status_code == 201
+    created = response.json()
+    assert isinstance(created["price"], (int, float))
+    assert Decimal(str(created["price"])) == Decimal(str(price))
+    stored = database_session.get(ServiceModel, created["id"])
+    assert stored.price == Decimal(str(price))

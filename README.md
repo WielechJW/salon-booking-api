@@ -424,9 +424,24 @@ nie zmienia warunków ani czasu istniejących rezerwacji.
 
 - grafik i parametr `date` w dostępności są interpretowane w strefie ustawionej
   przez `SALON_TIMEZONE` (domyślnie `Europe/Warsaw`),
+- godziny grafiku (`start_time`, `end_time`) muszą być lokalnymi godzinami bez
+  offsetu, np. `09:00:00`; wartości z `Z` lub `+02:00` są odrzucane kodem `422`,
 - `start_at` musi zawierać offset, np. `+02:00` albo `Z`,
 - terminy są przechowywane i zwracane przez API w UTC,
 - nie można utworzyć rezerwacji w przeszłości.
+
+### Walidacja ceny i danych klienta
+
+- cena jest nieujemna, skończona i mieści się w `Numeric(10, 2)` — maksymalnie
+  `99999999.99`, z najwyżej dwoma miejscami po przecinku; nadmiarowe miejsca
+  nie są zaokrąglane, tylko odrzucane kodem `422`,
+- ceny są walidowane jako `Decimal`, a w odpowiedziach JSON pozostają liczbami,
+- imię i nazwisko klienta ma od 2 do 100 znaków po usunięciu białych znaków
+  z początku i końca,
+- email musi być poprawnym adresem i mieć najwyżej 254 znaki,
+- telefon zawiera od 7 do 15 cyfr oraz opcjonalny `+` na początku; spacje,
+  myślniki i nawiasy są usuwane przed walidacją i zapisem, np.
+  `+48 (123) 456-789` jest zapisywany jako `+48123456789`.
 
 Backend musi sprawdzić:
 
