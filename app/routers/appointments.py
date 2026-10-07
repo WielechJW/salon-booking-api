@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -9,37 +11,35 @@ from app.models.user import UserModel
 from app.schemas.appointment import (
     Appointment,
     AppointmentResponse,
-    AppointmentStatus,
     AppointmentStatusUpdate,
 )
+from app.schemas.appointment_list import PAGINATION_RESPONSES, AppointmentListParams
 from app.services import booking_service
+from app.services.appointment_list_service import list_appointments
 from app.services.authorization import get_visible_appointment, scope_appointments
 from app.timezone import utc_now
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
 
-@router.get("", response_model=list[AppointmentResponse])
+@router.get(
+    "", response_model=list[AppointmentResponse], responses=PAGINATION_RESPONSES
+)
 def get_appointments(
-    employee_id: int | None = None,
-    status: AppointmentStatus | None = None,
+    response: Response,
+    params: Annotated[AppointmentListParams, Query()],
     user: UserModel = Depends(get_current_user),
     database_session: Session = Depends(get_db),
 ):
-    query = scope_appointments(
-        select(AppointmentModel).order_by(
-            AppointmentModel.start_at, AppointmentModel.id
-        ),
-        user,
+    page = list_appointments(
+        database_session=database_session,
+        query=scope_appointments(select(AppointmentModel), user),
+        **params.model_dump(),
     )
-
-    if employee_id is not None:
-        query = query.where(AppointmentModel.employee_id == employee_id)
-
-    if status is not None:
-        query = query.where(AppointmentModel.status == status)
-
-    return database_session.scalars(query).all()
+    response.headers["X-Total-Count"] = str(page.total)
+    response.headers["X-Limit"] = str(page.limit)
+    response.headers["X-Offset"] = str(page.offset)
+    return page.items
 
 
 @router.get("/{appointment_id}", response_model=AppointmentResponse)

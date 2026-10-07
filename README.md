@@ -639,6 +639,39 @@ zmieniać statusy wizyt w swoim kalendarzu, a administrator wszystkich wizyt.
 Próba dostępu do cudzej wizyty po ID zwraca `404`; niedozwolona operacja roli
 zwraca `403`. Nadal obowiązują reguły przejść statusów opisane w etapie 8.
 
+### Filtry dat i paginacja wizyt
+
+`GET /appointments` oraz `GET /users/me/appointments` przyjmują:
+
+- `employee_id` — opcjonalny filtr pracownika,
+- `status` — opcjonalny filtr statusu,
+- `date_from` i `date_to` — opcjonalne daty `YYYY-MM-DD`, obie granice włącznie;
+  można podać tylko jedną z nich,
+- `limit` — liczba wizyt na stronę, domyślnie `50`, od `1` do `100`,
+- `offset` — liczba pomijanych wyników, domyślnie `0`, wartość nieujemna.
+
+Daty filtrują dzień rozpoczęcia wizyty w `SALON_TIMEZONE`. Zakres jest
+przeliczany na UTC od lokalnej północy do północy po `date_to`, co uwzględnia
+także dni trwające 23 lub 25 godzin przy zmianie czasu. Wyniki są sortowane
+po `start_at`, a następnie po `id`.
+
+Przykłady:
+
+```text
+GET /appointments?employee_id=2&status=confirmed&date_from=2026-10-01&date_to=2026-10-31&limit=20&offset=0
+GET /users/me/appointments?date_from=2026-10-01&limit=20&offset=20
+```
+
+Odpowiedź JSON zawiera listę wizyt. Nagłówki `X-Total-Count`, `X-Limit`
+i `X-Offset` opisują paginację. `X-Total-Count` liczy wszystkie wyniki po
+zastosowaniu filtrów i uprawnień, przed ograniczeniem strony. Kolejną stronę
+pobiera się, zwiększając `offset` o `limit`. Offset poza końcem listy zwraca
+`[]` z poprawnym licznikiem.
+
+Niepoprawne daty, odwrócony zakres, błędny limit, offset lub dodatkowe parametry
+są odrzucane kodem `422`. Filtry i licznik nie ujawniają cudzych wizyt;
+`/users/me/appointments` zawsze zawiera tylko własne rezerwacje użytkownika.
+
 Pierwszego administratora utwórz po migracjach poleceniem lokalnym:
 
 ```bash
@@ -660,29 +693,30 @@ jest odrzucane kodem `409`.
 
 # Etap 12 — Zaawansowane wyszukiwanie terminów
 
-Klient nie musi wybierać konkretnego pracownika.
+Publiczny endpoint `GET /availability` wyszukuje wolne terminy wybranej usługi
+u wszystkich pracowników. Klient nie musi wcześniej wybierać pracownika.
 
 Przykład:
 
 ```text
-GET /availability?service_id=3&date=2026-09-20
+GET /availability?service_id=3&date=2026-10-09
 ```
 
-API może zwrócić:
+Przykładowa odpowiedź:
 
 ```json
 [
   {
-    "employee": "Bartek",
-    "time": "10:00"
+    "employee_id": 2,
+    "employee_name": "Bartek Nowak",
+    "start_at": "2026-10-09T08:00:00Z",
+    "end_at": "2026-10-09T08:45:00Z"
   },
   {
-    "employee": "Kamil",
-    "time": "10:15"
-  },
-  {
-    "employee": "Bartek",
-    "time": "11:30"
+    "employee_id": 1,
+    "employee_name": "Anna Kowalska",
+    "start_at": "2026-10-09T08:15:00Z",
+    "end_at": "2026-10-09T09:00:00Z"
   }
 ]
 ```
@@ -692,6 +726,22 @@ System wyszukuje wszystkich pracowników, którzy:
 - wykonują daną usługę,
 - pracują danego dnia,
 - posiadają wolny termin.
+
+Wyniki uwzględniają czas trwania usługi, aktywne rezerwacje oraz urlopy i przerwy
+każdego pracownika. Oba endpointy dostępności korzystają ze wspólnego generatora
+terminów co 15 minut. Dane grafików, wizyt i blokad są pobierane zbiorczo dla
+wyszukiwania usługi.
+
+Parametr `date` oznacza dzień w strefie salonu. `start_at` i `end_at` są w UTC;
+`employee_id` oraz `start_at` można bezpośrednio przekazać do `POST /appointments`
+razem z `service_id` i danymi klienta. Dokładne znaczniki czasu rozróżniają
+powtarzające się godziny przy zmianie czasu. Lista jest sortowana po `start_at`
+i `employee_id`.
+
+Brak wolnych terminów, grafików lub przypisanych pracowników oraz data w
+przeszłości zwracają `200` z `[]`. Nieistniejąca usługa zwraca `404`, a błędne
+parametry `422`. Dostępność nie rezerwuje terminu; utworzenie wizyty ponownie
+sprawdza kalendarz i może zwrócić `409`, jeśli ktoś wcześniej zajął termin.
 
 ---
 
@@ -828,6 +878,7 @@ app/
 │   ├── appointment.py
 │   ├── user.py
 │   ├── contact.py
+│   ├── appointment_list.py
 │   ├── price.py
 │   ├── schedule.py
 │   ├── availability.py
@@ -836,6 +887,7 @@ app/
     ├── __init__.py
     ├── errors.py
     ├── booking_service.py
+    ├── appointment_list_service.py
     ├── auth_service.py
     ├── authorization.py
     ├── employee_account_service.py
@@ -850,6 +902,8 @@ tests/
 ├── test_services.py
 ├── test_employees.py
 ├── test_appointments.py
+├── test_appointment_list.py
+├── test_service_availability.py
 ├── test_auth.py
 ├── test_permissions.py
 ├── test_cli.py
@@ -1015,6 +1069,8 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 [x] Employee ↔ Service
 [x] Employee schedules
 [x] Availability system
+[x] Availability across all employees
+[x] Appointment date filters and pagination
 [x] Booking validation
 [x] Time off / breaks
 [x] Users
