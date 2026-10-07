@@ -27,6 +27,7 @@ class UserResponse(BaseModel):
     phone: str
     role: UserRole
     is_active: bool
+    employee_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

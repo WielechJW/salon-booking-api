@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.config import get_settings
 from app.routers.appointments import router as appointments_router
 from app.routers.auth import router as auth_router
 from app.routers.availability import router as availability_router
@@ -9,6 +10,7 @@ from app.routers.schedules import router as schedules_router
 from app.routers.services import router as services_router
 from app.routers.time_off import router as time_off_router
 from app.routers.users import router as users_router
+from app.schemas.salon import SalonInfo
 from app.services.errors import (
     DomainConflictError,
     DomainNotFoundError,
@@ -62,3 +64,8 @@ app.include_router(users_router)
 @app.get("/")
 def root():
     return {"message": "Salon Booking API"}
+
+
+@app.get("/salon", response_model=SalonInfo, tags=["salon"])
+def get_salon_info():
+    return SalonInfo(timezone=get_settings().salon_timezone)

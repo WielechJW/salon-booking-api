@@ -1,10 +1,14 @@
 .git
 .github
 .venv
+.env
+.agents
+.codex
 __pycache__
 *.pyc
+**/__pycache__
 .pytest_cache
 .ruff_cache
-.env
+frontend
 salon.db
 tests

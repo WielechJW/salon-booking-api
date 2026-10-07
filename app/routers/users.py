@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.appointment import AppointmentModel
+from app.models.employee import EmployeeModel
 from app.models.user import UserModel
 from app.schemas.appointment import AppointmentResponse
 from app.schemas.appointment_list import PAGINATION_RESPONSES, AppointmentListParams
@@ -17,8 +18,16 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/me", response_model=UserResponse)
-def get_me(user: UserModel = Depends(get_current_user)):
-    return user
+def get_me(
+    user: UserModel = Depends(get_current_user),
+    database_session: Session = Depends(get_db),
+):
+    employee_id = database_session.scalar(
+        select(EmployeeModel.id).where(EmployeeModel.user_id == user.id)
+    )
+    return UserResponse.model_validate(user).model_copy(
+        update={"employee_id": employee_id}
+    )
 
 
 @router.get(

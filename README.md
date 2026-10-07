@@ -774,6 +774,7 @@ Docelowa architektura:
 ```text
 Docker Compose
 
+├── React + Nginx
 ├── FastAPI
 └── PostgreSQL
 ```
@@ -788,14 +789,35 @@ docker compose up
 
 # Etap 15 — Frontend
 
-Po ukończeniu głównej części backendu możliwe będzie stworzenie osobnego frontendu.
+Podstawowy frontend jest dostępny w katalogu `frontend/`.
 
-Planowany stack:
+Stack:
 
 ```text
 React
 TypeScript
+Vite
+React Router
+TanStack Query
+Tailwind CSS + shadcn/ui
+React Hook Form + Zod
+openapi-typescript + openapi-fetch
+date-fns + @date-fns/tz
 ```
+
+Uruchomienie deweloperskie (API musi być uruchomione osobno):
+
+```bash
+cd frontend
+npm ci
+cp .env.example .env
+npm run dev
+```
+
+Frontend: `http://localhost:5173`. Proxy wskazuje domyślnie API na porcie `18000`;
+adres można zmienić przez `API_PROXY_TARGET` w `frontend/.env`.
+`docker compose up --build` uruchamia również frontend na `http://localhost:3000`.
+Szczegóły widoków, integracji i testów: [frontend/README.md](frontend/README.md).
 
 Frontend klienta:
 
@@ -819,8 +841,10 @@ pracownicy
 usługi
 grafiki
 rezerwacje
-klienci
 ```
+
+Frontend pracownika obejmuje własne wizyty, zmiany statusów, grafik oraz blokady
+czasu. Zarządzanie katalogiem klientów pozostaje kolejnym etapem.
 
 ---
 
@@ -949,9 +973,11 @@ docker compose up --build
 ```
 
 Compose uruchamia PostgreSQL, czeka na jego healthcheck, wykonuje migracje
-Alembic i uruchamia API. Dokumentacja jest dostępna pod adresem
-`http://127.0.0.1:8000/docs`.
-Porty hosta można zmienić przez `API_PORT` i `POSTGRES_PORT` w pliku `.env`.
+Alembic, uruchamia API i frontend. Dla konfiguracji z `.env.example` frontend
+jest dostępny pod `http://localhost:3000`, a dokumentacja API pod
+`http://127.0.0.1:18000/docs`.
+Porty hosta można zmienić przez `FRONTEND_PORT`, `API_PORT` i `POSTGRES_PORT`
+w pliku `.env`.
 `JWT_SECRET_KEY` musi mieć co najmniej 32 znaki. Compose wymaga jawnego ustawienia
 klucza; `ACCESS_TOKEN_EXPIRE_MINUTES` określa ważność tokenu (1–1440 minut).
 
@@ -1078,7 +1104,7 @@ Struktura projektu będzie rozwijana stopniowo wraz z nauką kolejnych elementó
 [x] Roles and permissions
 [x] Automated tests
 [x] Docker
-[ ] React frontend
+[x] Basic React frontend
 [ ] Deployment
 ```
 

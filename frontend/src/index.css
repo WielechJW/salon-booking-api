@@ -1,0 +1,108 @@
+@import 'tailwindcss';
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--secondary);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--primary);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --font-sans: 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+:root {
+  --background: #f5f5ef;
+  --foreground: #233731;
+  --card: #ffffff;
+  --primary: #203c36;
+  --primary-foreground: #ffffff;
+  --secondary: #eeefe8;
+  --muted-foreground: #69766d;
+  --accent: #e1efbb;
+  --destructive: #b93838;
+  --border: #dde2d7;
+  --radius: 1rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply m-0 bg-background text-foreground antialiased;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled),
+  select {
+    cursor: pointer;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.035em;
+  }
+  ::selection {
+    background: #ddefad;
+    color: #203c36;
+  }
+}
+
+@layer components {
+  .eyebrow {
+    @apply text-[11px] font-semibold tracking-[0.16em] uppercase text-muted-foreground;
+  }
+  .panel {
+    @apply rounded-2xl border bg-card p-5 sm:p-7;
+  }
+  .field {
+    @apply grid gap-2;
+  }
+  .native-select {
+    @apply flex h-10 w-full rounded-md border bg-white px-3 text-sm outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 disabled:opacity-50;
+  }
+  .page-enter {
+    animation: page-enter 260ms ease-out both;
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
